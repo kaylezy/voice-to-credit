@@ -7,6 +7,11 @@ export default function BottomNav() {
   const router = useRouter();
   const pathname = usePathname();
 
+  const isHome = pathname === '/dashboard';
+  const isLedger = pathname === '/ledger';
+  const isFinance = pathname === '/finance';
+  const isProfile = pathname === '/profile';
+
   return (
     <View style={styles.container}>
       {/* Home Tab */}
@@ -15,23 +20,27 @@ export default function BottomNav() {
         onPress={() => router.push('/dashboard')}
       >
         <Ionicons 
-          name={pathname === '/dashboard' ? "home" : "home-outline"} 
+          name={isHome ? "home" : "home-outline"} 
           size={22} 
-          color={pathname === '/dashboard' ? "#0b4f8c" : "#6b7280"} 
+          color={isHome ? "#0b4f8c" : "#6b7280"} 
         />
-        <Text style={[styles.navText, pathname === '/dashboard' && styles.activeText]}>Home</Text>
+        <Text style={[styles.navText, isHome && styles.activeText]}>Home</Text>
       </TouchableOpacity>
 
       {/* Ledger Tab */}
       <TouchableOpacity 
         style={styles.navItem} 
-        onPress={() => alert('Ledger screen')}
+        onPress={() => router.push('../ledger')}
       >
-        <Ionicons name="receipt-outline" size={22} color="#6b7280" />
-        <Text style={styles.navText}>Ledger</Text>
+        <Ionicons 
+          name={isLedger ? "receipt" : "receipt-outline"} 
+          size={22} 
+          color={isLedger ? "#0b4f8c" : "#6b7280"} 
+        />
+        <Text style={[styles.navText, isLedger && styles.activeText]}>Ledger</Text>
       </TouchableOpacity>
 
-      {/*Mic Button */}
+      {/* Mic Button */}
       <TouchableOpacity 
         style={styles.floatingMicButton} 
         activeOpacity={0.85}
@@ -43,19 +52,27 @@ export default function BottomNav() {
       {/* Finance Tab */}
       <TouchableOpacity 
         style={styles.navItem} 
-        onPress={() => alert('Finance screen')}
+        onPress={() => router.push('../finance')}
       >
-        <Ionicons name="stats-chart-outline" size={22} color="#6b7280" />
-        <Text style={styles.navText}>Finance</Text>
+        <Ionicons 
+          name={isFinance ? "stats-chart" : "stats-chart-outline"} 
+          size={22} 
+          color={isFinance ? "#0b4f8c" : "#6b7280"} 
+        />
+        <Text style={[styles.navText, isFinance && styles.activeText]}>Finance</Text>
       </TouchableOpacity>
 
       {/* Profile Tab */}
       <TouchableOpacity 
         style={styles.navItem} 
-        onPress={() => alert('Profile screen')}
+        onPress={() => router.push('../profile')}
       >
-        <Ionicons name="person-outline" size={22} color="#6b7280" />
-        <Text style={styles.navText}>Profile</Text>
+        <Ionicons 
+          name={isProfile ? "person" : "person-outline"} 
+          size={22} 
+          color={isProfile ? "#0b4f8c" : "#6b7280"} 
+        />
+        <Text style={[styles.navText, isProfile && styles.activeText]}>Profile</Text>
       </TouchableOpacity>
     </View>
   );
@@ -94,6 +111,7 @@ const styles = StyleSheet.create({
   },
   activeText: {
     color: '#0b4f8c',
+    fontWeight: '800',
   },
   floatingMicButton: {
     top: -18,

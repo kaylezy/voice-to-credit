@@ -20,7 +20,7 @@ export default function DashboardScreen() {
           </View>
           <TouchableOpacity onPress={() => setHasRecords(!hasRecords)}>
             <Image
-              source={{ uri: '#' }} // Profile Avatar image reference
+              source={{ uri: '#' }}
               style={styles.avatar}
             />
           </TouchableOpacity>
@@ -30,7 +30,7 @@ export default function DashboardScreen() {
           <View style={styles.newUserSection}>
             <View style={styles.illustrationBox}>
               <Image
-                source={{ uri: '#' }} 
+                source={{ uri: '#' }}
                 style={styles.illustration}
                 resizeMode="contain"
               />
@@ -91,7 +91,7 @@ export default function DashboardScreen() {
               </View>
             </View>
 
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.recordButton}
               onPress={() => router.push('/record-transaction')}
             >
@@ -189,7 +189,7 @@ export default function DashboardScreen() {
                   <View style={[styles.legendDot, { backgroundColor: '#10b981' }]} />
                   <Text style={styles.chartTitleText}>Sales trend</Text>
                 </View>
-                <Image 
+                <Image
                   source={{ uri: '#' }}
                   style={styles.chartPlaceholder}
                   resizeMode="contain"
@@ -201,15 +201,15 @@ export default function DashboardScreen() {
                   <View style={[styles.legendDot, { backgroundColor: '#f59e0b' }]} />
                   <Text style={styles.chartTitleText}>Expense trend</Text>
                 </View>
-                <Image 
-                  source={{ uri: '#' }} 
+                <Image
+                  source={{ uri: '#' }}
                   style={styles.chartPlaceholder}
                   resizeMode="contain"
                 />
               </View>
             </View>
 
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.recordButton}
               onPress={() => router.push('/record-transaction')}
             >
@@ -231,16 +231,56 @@ export default function DashboardScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f8f9fa' },
-  scrollContainer: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 90 },
-  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-  dashboardTitle: { fontSize: 18, fontWeight: '700', color: '#0b4f8c', marginBottom: 4 },
-  greetingText: { fontSize: 13, color: '#6b7280' },
-  userNameText: { fontSize: 22, fontWeight: '800', color: '#0b4f8c' },
-  avatar: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#e2e8f0' },
-  newUserSection: { alignItems: 'center' },
-  illustrationBox: { width: '100%', height: 180, justifyContent: 'center', alignItems: 'center', marginBottom: 16 },
-  illustration: { width: '100%', height: '100%' },
+  container: { 
+    flex: 1, 
+    backgroundColor: '#f8f9fa' 
+  },
+  scrollContainer: { 
+    paddingHorizontal: 20, 
+    paddingTop: 16, 
+    paddingBottom: 90 
+  },
+  headerRow: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    alignItems: 'center', 
+    marginBottom: 20 
+  },
+  dashboardTitle: { 
+    fontSize: 18, 
+    fontWeight: '700', 
+    color: '#0b4f8c', 
+    marginBottom: 4 
+  },
+  greetingText: { 
+    fontSize: 13, 
+    color: '#6b7280'
+  },
+  userNameText: { 
+    fontSize: 22, 
+    fontWeight: '800', 
+    color: '#0b4f8c' 
+  },
+  avatar: { 
+    width: 48, 
+    height: 48, 
+    borderRadius: 24, 
+    backgroundColor: '#e2e8f0' 
+  },
+  newUserSection: { 
+    alignItems: 'center' 
+  },
+  illustrationBox: { 
+    width: '100%', 
+    height: 180, 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    marginBottom: 16 
+  },
+  illustration: { 
+    width: '100%', 
+    height: '100%'
+  },
   welcomeHeading: { fontSize: 24, fontWeight: '800', color: '#0b4f8c', textAlign: 'center', marginBottom: 8 },
   welcomeSubtext: { fontSize: 13, color: '#4b5563', textAlign: 'center', lineHeight: 18, paddingHorizontal: 16, marginBottom: 24 },
   existingUserSection: {},
