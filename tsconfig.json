@@ -5,7 +5,10 @@
     "allowJs": true,
     "strict": true,
     "moduleResolution": "bundler",
-    "target": "esnext"
+    "target": "esnext",
+    "paths": {
+      "@/*": ["./src/*"]
+    }
   },
   "include": [
     "**/*.ts",

@@ -12,12 +12,28 @@ import {
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useLogin } from "@/features/auth";
 
 export default function LoginScreen() {
   const router = useRouter();
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+    const { login, loading, error } = useLogin();
+  const [localError, setLocalError] = useState<string | null>(null);
+
+  const handleLogin = async () => {
+    setLocalError(null);
+    if (!identifier.trim() || !password) {
+      setLocalError("Enter your email and password.");
+      return;
+    }
+    const result = await login(identifier, password);
+    if (result === "ok") router.replace("/"); // change "/" to your home screen route
+    if (result === "needs_verification") {
+      router.push({ pathname: "/(auth)/verify", params: { email: identifier.trim() } });
+    }
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -38,10 +54,10 @@ export default function LoginScreen() {
           {/* Form */}
           <View style={styles.form}>
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>Email Address or Phone Number</Text>
+              <Text style={styles.label}>Email Address</Text>
               <TextInput
                 style={styles.input}
-                placeholder="Enter your Email Address or Phone Number"
+                placeholder="Enter your Email Address"
                 placeholderTextColor="#9ca3af"
                 autoCapitalize="none"
                 value={identifier}
@@ -79,11 +95,16 @@ export default function LoginScreen() {
               <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
             </TouchableOpacity>
 
+                        {(localError || error) && (
+              <Text style={styles.errorText}>{localError ?? error}</Text>
+            )}
+
             <TouchableOpacity
-              style={styles.button}
-              onPress={() => alert("Logged in successfully!")}
+              style={[styles.button, loading && { opacity: 0.6 }]}
+              onPress={handleLogin}
+              disabled={loading}
             >
-              <Text style={styles.buttonText}>Login</Text>
+              <Text style={styles.buttonText}>{loading ? "Logging in..." : "Login"}</Text>
             </TouchableOpacity>
           </View>
 
@@ -260,4 +281,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "700",
   },
+
+    errorText: {
+    color: "#dc2626",
+    fontSize: 13,
+    marginTop: 4,
+    textAlign: "center",
+  },
+
 });

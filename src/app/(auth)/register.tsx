@@ -3,6 +3,7 @@ import { StyleSheet, Text, View, TextInput, TouchableOpacity, KeyboardAvoidingVi
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { signUp, checkPassword } from "@/features/auth";
 
 export default function RegisterScreen() {
   const router = useRouter();
@@ -12,6 +13,25 @@ export default function RegisterScreen() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+    const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleRegister = async () => {
+    setError(null);
+    if (!fullName.trim()) return setError("Enter your full name.");
+    if (!/^\S+@\S+\.\S+$/.test(email.trim())) return setError("Enter a valid email address.");
+    const problem = checkPassword(password);
+    if (problem) return setError(problem);
+    if (password !== confirmPassword) return setError("Passwords do not match.");
+
+    setLoading(true);
+    const result = await signUp({ fullName, email, password });
+    setLoading(false);
+
+    if (!result.ok) return setError(result.message);
+    router.push({ pathname: "/(auth)/verify", params: { email: email.trim().toLowerCase() } });
+  };
+
 
   return (
     <SafeAreaView style={styles.container}>
@@ -86,8 +106,14 @@ export default function RegisterScreen() {
               </View>
             </View>
 
-            <TouchableOpacity style={styles.button} onPress={() => alert('Account created!')}>
-              <Text style={styles.buttonText}>Create Account</Text>
+                        {error && <Text style={styles.errorText}>{error}</Text>}
+
+            <TouchableOpacity
+              style={[styles.button, loading && { opacity: 0.6 }]}
+              onPress={handleRegister}
+              disabled={loading}
+            >
+              <Text style={styles.buttonText}>{loading ? "Creating account..." : "Create Account"}</Text>
             </TouchableOpacity>
           </View>
 
@@ -255,4 +281,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
   },
+
+    errorText: {
+    color: '#dc2626',
+    fontSize: 13,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  
 });
+
