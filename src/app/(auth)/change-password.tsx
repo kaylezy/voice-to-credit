@@ -73,7 +73,7 @@ export default function ChangePasswordScreen() {
 
           <TouchableOpacity 
             style={styles.primaryButton} 
-            onPress={() => router.push('../auth/password-success')}
+            onPress={() => router.push('../(auth)/password-success')}
           >
             <Text style={styles.primaryButtonText}>Change Password</Text>
           </TouchableOpacity>

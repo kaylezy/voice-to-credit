@@ -35,7 +35,7 @@ export default function PasswordSuccessScreen() {
         {/* Action Button */}
         <TouchableOpacity
           style={styles.primaryButton}
-          onPress={() => router.replace("../auth/login")}
+          onPress={() => router.replace("../(auth)/login")}
         >
           <Text style={styles.primaryButtonText}>Go to Login</Text>
         </TouchableOpacity>

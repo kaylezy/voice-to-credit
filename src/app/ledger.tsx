@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, TextInput, TouchableOpacity, SafeAreaView, ScrollView, Modal } from 'react-native';
+import { StyleSheet, Text, View, TextInput, TouchableOpacity, ScrollView, Modal } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import BottomNav from './BottomNav';
+import { SafeAreaView } from "react-native-safe-area-context";
 
 const transactions = [
   { id: '1', title: 'Ankara fabric', type: 'Sale', detail: '20 yards', time: 'Today · 05:32 PM', amount: '₦80,000', status: 'Paid', color: '#10b981', icon: 'checkmark-circle-outline' },

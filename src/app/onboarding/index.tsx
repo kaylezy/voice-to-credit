@@ -54,12 +54,12 @@ export default function OnboardingScreen() {
     if (currentIndex < onboardingData.length - 1) {
       flatListRef.current?.scrollToIndex({ index: currentIndex + 1 });
     } else {
-      router.replace("../auth/login");
+      router.replace("../(auth)/login");
     }
   };
 
   const handleSkip = () => {
-    router.replace("../auth/login");
+    router.replace("../(auth)/login");
   };
 
   const renderItem = ({ item }: { item: OnboardingItem }) => (

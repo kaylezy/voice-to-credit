@@ -44,14 +44,14 @@ export default function ForgotPasswordScreen() {
 
         <TouchableOpacity
           style={styles.primaryButton}
-          onPress={() => router.push("../auth/change-password")}
+          onPress={() => router.push("../(auth)/change-password")}
         >
           <Text style={styles.primaryButtonText}>Send Code</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
           style={styles.secondaryButton}
-          onPress={() => router.push("../auth/change-password")}
+          onPress={() => router.push("../(auth)/change-password")}
         >
           <Text style={styles.secondaryButtonText}>Next</Text>
         </TouchableOpacity>
