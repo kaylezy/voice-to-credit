@@ -22,7 +22,7 @@ export default function RecordEditScreen() {
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
           <Ionicons name="chevron-back" size={24} color="#0b4f8c" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Record Transaction</Text>
+        <Text style={styles.headerTitle}>Transaction Details</Text>
 
         <Text style={styles.sectionTitle}>Edit Transaction</Text>
         <Text style={styles.sectionSubtitle}>Update the details if needed</Text>
@@ -94,7 +94,7 @@ export default function RecordEditScreen() {
 
         <TouchableOpacity 
           style={styles.primaryButton}
-          onPress={() => router.push('/record-review')}
+          onPress={() => router.push('../record-updated')}
         >
           <Text style={styles.primaryButtonText}>Update details</Text>
         </TouchableOpacity>

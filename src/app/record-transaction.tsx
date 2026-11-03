@@ -15,7 +15,7 @@ export default function RecordTransactionScreen() {
 
   const handleAllowPermission = () => {
     setShowMicPermissionModal(false);
-    router.push('/record-active');
+    router.push('../record-active');
   };
 
   return (
@@ -52,7 +52,7 @@ export default function RecordTransactionScreen() {
 
         <Text style={styles.orText}>or</Text>
 
-        <TouchableOpacity style={styles.secondaryButton} onPress={() => alert('Navigate to manual entry')}>
+        <TouchableOpacity style={styles.secondaryButton} onPress={() => router.push('../record-manually')}>
           <Text style={styles.secondaryButtonText}>Enter manually</Text>
         </TouchableOpacity>
 
