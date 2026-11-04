@@ -1,3 +1,4 @@
+
 import React, { useCallback, useState } from 'react';
 import {
   StyleSheet,
@@ -24,7 +25,6 @@ export default function ProfileEditScreen() {
   const [saving, setSaving] = useState(false);
   const [exists, setExists] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
@@ -33,31 +33,66 @@ export default function ProfileEditScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      (async () => {
-        const { data: u } = await supabase.auth.getUser();
-        setEmail(u.user?.email ?? '');
+      let active = true;
 
-        const res = await apiFetch<any>('/api/profile');
+      const loadProfile = async () => {
+        try {
+          setLoading(true);
+          setError(null);
 
-        if (res.ok) {
-          setExists(true);
-          setFullName(res.data.full_name ?? '');
-          setPhone(res.data.phone ?? '');
-          setGender(res.data.gender ?? '');
-          setDob(res.data.date_of_birth ?? '');
-        } else if (res.status === 404) {
-          // No profile saved yet: the form creates one
-          setExists(false);
-        } else {
-          setError(
-            res.error === 'network_error'
-              ? "Can't reach the server. Pull back and try again."
-              : `Could not load your profile (${res.error}).`
-          );
+          const { data: u } = await supabase.auth.getUser();
+
+          if (!active) return;
+
+          setEmail(u.user?.email ?? '');
+
+          const res = await apiFetch<any>('/api/profiles');
+
+          if (!active) return;
+
+          if (res.ok) {
+            setExists(true);
+            setFullName(res.data?.full_name ?? '');
+            setPhone(res.data?.phone ?? '');
+            setGender(res.data?.gender ?? '');
+            setDob(res.data?.date_of_birth ?? '');
+          } else if (res.status === 404) {
+            setExists(false);
+            setFullName('');
+            setPhone('');
+            setGender('');
+            setDob('');
+          } else {
+            console.warn(
+              '[profile-edit] profile load failed',
+              res.status,
+              res.error
+            );
+
+            setError(
+              res.error === 'network_error'
+                ? "Can't reach the server. Pull back and try again."
+                : `Could not load your profile (${res.status} ${res.error}).`
+            );
+          }
+        } catch (err) {
+          console.warn('[profile-edit] unexpected load error', err);
+
+          if (active) {
+            setError("Something went wrong while loading your profile.");
+          }
+        } finally {
+          if (active) {
+            setLoading(false);
+          }
         }
+      };
 
-        setLoading(false);
-      })();
+      loadProfile();
+
+      return () => {
+        active = false;
+      };
     }, [])
   );
 
@@ -72,36 +107,45 @@ export default function ProfileEditScreen() {
       dob.trim() &&
       !/^\d{4}-\d{2}-\d{2}$/.test(dob.trim())
     ) {
-      return setError('Date of birth must look like 1999-02-12.');
+      return setError(
+        'Date of birth must look like 1999-02-12.'
+      );
     }
 
     setSaving(true);
 
-    const res = await apiFetch('/api/profile', {
-      method: exists ? 'PATCH' : 'POST',
-      body: {
-        full_name: fullName.trim(),
-        ...(phone.trim() ? { phone: phone.trim() } : {}),
-        ...(gender ? { gender } : {}),
-        ...(dob.trim() ? { date_of_birth: dob.trim() } : {}),
-      },
-    });
+    try {
+      const res = await apiFetch('/api/profiles', {
+        method: exists ? 'PATCH' : 'POST',
+        body: {
+          full_name: fullName.trim(),
+          ...(phone.trim() ? { phone: phone.trim() } : {}),
+          ...(gender ? { gender } : {}),
+          ...(dob.trim() ? { date_of_birth: dob.trim() } : {}),
+        },
+      });
 
-    setSaving(false);
+      if (!res.ok) {
+        console.warn(
+          '[profile-edit] save failed',
+          res.status,
+          res.error,
+          JSON.stringify(res.fields ?? res.body)
+        );
 
-    if (!res.ok) {
-      if (res.error === 'validation_failed') {
-        return setError('Check your phone number and date of birth.');
+        return setError(
+          `Could not save (${res.status} ${res.error}).`
+        );
       }
 
-      return setError(
-        res.error === 'network_error'
-          ? "Can't reach the server. Try again."
-          : 'Could not save. Try again.'
-      );
-    }
+      router.replace('/profile-saved');
+    } catch (err) {
+      console.warn('[profile-edit] unexpected save error', err);
 
-    router.replace('/profile-saved');
+      setError("Something went wrong while saving. Try again.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -115,7 +159,11 @@ export default function ProfileEditScreen() {
           style={styles.backButton}
           onPress={() => router.back()}
         >
-          <Ionicons name="chevron-back" size={24} color="#0b4f8c" />
+          <Ionicons
+            name="chevron-back"
+            size={24}
+            color="#0b4f8c"
+          />
         </TouchableOpacity>
 
         <Text style={styles.headerTitle}>Edit Profile</Text>
@@ -129,7 +177,7 @@ export default function ProfileEditScreen() {
         ) : (
           <>
             {!exists && (
-              <Text style={{ color: '#6b7280', fontSize: 13, marginBottom: 12 }}>
+              <Text style={styles.noticeText}>
                 You haven’t saved your profile yet. Fill in your details and save.
               </Text>
             )}
@@ -137,16 +185,20 @@ export default function ProfileEditScreen() {
             <View style={styles.form}>
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Full Name</Text>
+
                 <TextInput
                   style={styles.input}
                   value={fullName}
                   onChangeText={setFullName}
                   maxLength={100}
+                  placeholder="Enter your full name"
+                  placeholderTextColor="#9ca3af"
                 />
               </View>
 
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Email Address</Text>
+
                 <TextInput
                   style={[
                     styles.input,
@@ -162,39 +214,35 @@ export default function ProfileEditScreen() {
 
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Phone Number</Text>
+
                 <TextInput
                   style={styles.input}
                   value={phone}
                   onChangeText={setPhone}
                   keyboardType="phone-pad"
+                  placeholder="Enter your phone number"
+                  placeholderTextColor="#9ca3af"
                 />
               </View>
 
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Gender</Text>
 
-                <View style={{ flexDirection: 'row', gap: 8 }}>
+                <View style={styles.genderContainer}>
                   {GENDERS.map((g) => (
                     <TouchableOpacity
                       key={g}
                       onPress={() => setGender(g)}
-                      style={{
-                        flex: 1,
-                        height: 42,
-                        borderRadius: 12,
-                        justifyContent: 'center',
-                        alignItems: 'center',
-                        borderWidth: 1,
-                        borderColor: gender === g ? '#0b4f8c' : '#e5e7eb',
-                        backgroundColor: gender === g ? '#0b4f8c' : '#ffffff',
-                      }}
+                      style={[
+                        styles.genderOption,
+                        gender === g && styles.genderOptionSelected,
+                      ]}
                     >
                       <Text
-                        style={{
-                          fontSize: 13,
-                          fontWeight: '700',
-                          color: gender === g ? '#ffffff' : '#1f2937',
-                        }}
+                        style={[
+                          styles.genderText,
+                          gender === g && styles.genderTextSelected,
+                        ]}
                       >
                         {g}
                       </Text>
@@ -207,6 +255,7 @@ export default function ProfileEditScreen() {
                 <Text style={styles.label}>
                   Date of Birth (YYYY-MM-DD, optional)
                 </Text>
+
                 <TextInput
                   style={styles.input}
                   value={dob}
@@ -219,7 +268,9 @@ export default function ProfileEditScreen() {
             </View>
 
             {error && (
-              <Text style={styles.errorText}>{error}</Text>
+              <Text style={styles.errorText}>
+                {error}
+              </Text>
             )}
 
             <TouchableOpacity
@@ -270,30 +321,10 @@ const styles = StyleSheet.create({
     color: '#0b4f8c',
     marginBottom: 16,
   },
-  avatarContainer: {
-    alignItems: 'center',
-    marginBottom: 20,
-    position: 'relative',
-  },
-  avatarLarge: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
-    backgroundColor: '#e5e7eb',
-  },
-  cameraBadge: {
-    position: 'absolute',
-    bottom: 0,
-    right: '38%',
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: '#ffffff',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    elevation: 2,
+  noticeText: {
+    color: '#6b7280',
+    fontSize: 13,
+    marginBottom: 12,
   },
   form: {
     marginBottom: 10,
@@ -317,16 +348,31 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#1f2937',
   },
-  dropdown: {
+  genderContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    gap: 8,
+  },
+  genderOption: {
+    flex: 1,
+    height: 42,
+    borderRadius: 12,
+    justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#ffffff',
     borderWidth: 1,
     borderColor: '#e5e7eb',
-    borderRadius: 12,
-    height: 46,
-    paddingHorizontal: 16,
+    backgroundColor: '#ffffff',
+  },
+  genderOptionSelected: {
+    borderColor: '#0b4f8c',
+    backgroundColor: '#0b4f8c',
+  },
+  genderText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#1f2937',
+  },
+  genderTextSelected: {
+    color: '#ffffff',
   },
   saveBtn: {
     backgroundColor: '#0b4f8c',
@@ -336,7 +382,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 10,
     shadowColor: '#0b4f8c',
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
     shadowOpacity: 0.2,
     shadowRadius: 6,
     elevation: 3,

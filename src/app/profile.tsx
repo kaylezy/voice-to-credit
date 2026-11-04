@@ -32,7 +32,7 @@ export default function ProfileScreen() {
           );
         }
 
-        const res = await apiFetch<any>('/api/profile');
+        const res = await apiFetch<any>('/api/profiles');
 
         if (res.ok && res.data) {
           setName(res.data.full_name ?? res.data.name ?? '');
