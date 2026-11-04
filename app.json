@@ -22,9 +22,8 @@
         "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"
       ]
     },
-    "web": {
-      "output": "server",
-      "favicon": "./assets/images/logo.png"
+        "web": {
+      "output": "single"
     },
     "plugins": [
       "expo-router",
