@@ -1,56 +1,75 @@
 import React from 'react';
-import { StyleSheet, Text, View, Image, TouchableOpacity } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import BottomNav from './BottomNav';
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useTransactionDraft } from '@/features/transactions';
 
 export default function RecordSavedScreen() {
   const router = useRouter();
+  const { savedId, reset } = useTransactionDraft();
 
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.modalCard}>
         {/* Close Button */}
-        <TouchableOpacity style={styles.closeButton} onPress={() => router.push('/dashboard')}>
+        <TouchableOpacity
+          style={styles.closeButton}
+          onPress={() => {
+            reset();
+            router.replace('/dashboard');
+          }}
+        >
           <Ionicons name="close" size={22} color="#0b4f8c" />
         </TouchableOpacity>
 
-        {/* Success Icon / Image Reference */}
+        {/* Success Icon */}
         <View style={styles.imageContainer}>
-          <Image 
-            source={{ uri: '#' }} // Image reference (src="#")
-            style={styles.successImage}
-            resizeMode="contain"
+          <Ionicons
+            name="checkmark-circle"
+            size={80}
+            color="#10b981"
           />
         </View>
 
         {/* Text Details */}
         <Text style={styles.title}>Transaction saved!</Text>
+
         <Text style={styles.subtitle}>
           Your transaction have been saved and added to your financial records
         </Text>
 
         {/* Action Buttons */}
-        <TouchableOpacity 
-          style={styles.primaryButton} 
-          onPress={() => alert('View Transaction details')}
+        <TouchableOpacity
+          style={styles.primaryButton}
+          onPress={() =>
+            router.push({
+              pathname: '/transaction-details',
+              params: { id: savedId ?? '' },
+            })
+          }
         >
           <Text style={styles.primaryButtonText}>View Transaction</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity 
-          style={styles.secondaryButton} 
-          onPress={() => alert('View Ledger screen')}
+        <TouchableOpacity
+          style={styles.secondaryButton}
+          onPress={() => router.push('/ledger')}
         >
           <Text style={styles.secondaryButtonText}>View Ledger</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity 
-          style={styles.returnButton} 
-          onPress={() => router.push('/dashboard')}
+        <TouchableOpacity
+          style={styles.returnButton}
+          onPress={() => {
+            reset();
+            router.replace('/dashboard');
+          }}
         >
-          <Text style={styles.returnButtonText}>Return to dashboard</Text>
+          <Text style={styles.returnButtonText}>
+            Return to dashboard
+          </Text>
         </TouchableOpacity>
       </View>
 
@@ -92,10 +111,6 @@ const styles = StyleSheet.create({
     marginVertical: 16,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  successImage: {
-    width: 100,
-    height: 100,
   },
   title: {
     fontSize: 22,

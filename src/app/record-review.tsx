@@ -1,12 +1,51 @@
-import React from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, ScrollView } from 'react-native';
+import React, { useState } from 'react';
+import { StyleSheet, Text, View, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import BottomNav from './BottomNav';
 import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  formatNaira, isDebt, parseAmount, saveTransaction, statusLabel, typeLabel, useTransactionDraft,
+} from '@/features/transactions';
 
 export default function RecordReviewScreen() {
   const router = useRouter();
+  const { draft, idempotencyKey, setSavedId, reset } = useTransactionDraft();
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [duplicate, setDuplicate] = useState(false);
+
+  const save = async (allowDuplicate = false) => {
+    setError(null);
+    setDuplicate(false);
+    setSaving(true);
+    const result = await saveTransaction(draft, idempotencyKey, allowDuplicate);
+    setSaving(false);
+    if (!result.ok) {
+      setError(result.message);
+      setDuplicate(result.code === 'duplicate_transaction');
+      return;
+    }
+    setSavedId(result.id);
+    router.replace('/record-saved');
+  };
+
+  const amount = parseAmount(draft.amount);
+  const quantity = `${draft.quantity} ${draft.unit}`.trim();
+  const lowConfidence = draft.inputMethod === 'voice' && draft.confidence !== null && draft.confidence < 0.7;
+
+  const Row = ({ icon, label, value }: { icon: React.ComponentProps<typeof Ionicons>['name']; label: string; value: string }) => (
+    <>
+      <View style={styles.row}>
+        <View style={styles.labelGroup}>
+          <Ionicons name={icon} size={18} color="#0b4f8c" style={{ marginRight: 10 }} />
+          <Text style={styles.label}>{label}</Text>
+        </View>
+        <Text style={[styles.valueBlue, { flexShrink: 1, textAlign: 'right', marginLeft: 12 }]}>{value}</Text>
+      </View>
+      <View style={styles.divider} />
+    </>
+  );
 
   return (
     <SafeAreaView style={styles.container}>
@@ -19,78 +58,25 @@ export default function RecordReviewScreen() {
         <Text style={styles.sectionTitle}>Review Transaction</Text>
         <Text style={styles.sectionSubtitle}>Confirm the details before saving</Text>
 
-        {/* Review Card */}
+        {lowConfidence && (
+          <View style={styles.warnBox}>
+            <Ionicons name="alert-circle-outline" size={18} color="#92400e" />
+            <Text style={styles.warnText}>We weren't fully sure about this one. Please check every detail carefully.</Text>
+          </View>
+        )}
+
         <View style={styles.card}>
-          <View style={styles.row}>
-            <View style={styles.labelGroup}>
-              <Ionicons name="pricetag-outline" size={18} color="#0b4f8c" style={{ marginRight: 10 }} />
-              <Text style={styles.label}>Transaction Type</Text>
-            </View>
-            <Text style={styles.valueBlue}>Sale</Text>
-          </View>
-          <View style={styles.divider} />
-
-          <View style={styles.row}>
-            <View style={styles.labelGroup}>
-              <Ionicons name="cube-outline" size={18} color="#0b4f8c" style={{ marginRight: 10 }} />
-              <Text style={styles.label}>Product</Text>
-            </View>
-            <Text style={styles.valueBlue}>Ankara</Text>
-          </View>
-          <View style={styles.divider} />
-
-          <View style={styles.row}>
-            <View style={styles.labelGroup}>
-              <Ionicons name="list-outline" size={18} color="#0b4f8c" style={{ marginRight: 10 }} />
-              <Text style={styles.label}>Quantity</Text>
-            </View>
-            <Text style={styles.valueBlue}>20 yards</Text>
-          </View>
-          <View style={styles.divider} />
-
-          <View style={styles.row}>
-            <View style={styles.labelGroup}>
-              <Ionicons name="wallet-outline" size={18} color="#0b4f8c" style={{ marginRight: 10 }} />
-              <Text style={styles.label}>Amount</Text>
-            </View>
-            <Text style={styles.valueBlue}>₦80,000</Text>
-          </View>
-          <View style={styles.divider} />
-
-          <View style={styles.row}>
-            <View style={styles.labelGroup}>
-              <Ionicons name="calendar-outline" size={18} color="#0b4f8c" style={{ marginRight: 10 }} />
-              <Text style={styles.label}>Date</Text>
-            </View>
-            <Text style={styles.valueBlue}>Today</Text>
-          </View>
-          <View style={styles.divider} />
-
-          <View style={styles.row}>
-            <View style={styles.labelGroup}>
-              <Ionicons name="person-outline" size={18} color="#0b4f8c" style={{ marginRight: 10 }} />
-              <Text style={styles.label}>Customer/Supplier</Text>
-            </View>
-            <Text style={styles.valueBlue}>Nil</Text>
-          </View>
-          <View style={styles.divider} />
-
-          <View style={styles.row}>
-            <View style={styles.labelGroup}>
-              <Ionicons name="card-outline" size={18} color="#0b4f8c" style={{ marginRight: 10 }} />
-              <Text style={styles.label}>Payment Status</Text>
-            </View>
-            <Text style={styles.valueBlue}>Paid</Text>
-          </View>
-          <View style={styles.divider} />
-
-          <View style={styles.row}>
-            <View style={styles.labelGroup}>
-              <Ionicons name="document-text-outline" size={18} color="#0b4f8c" style={{ marginRight: 10 }} />
-              <Text style={styles.label}>Notes</Text>
-            </View>
-            <Text style={styles.valueBlue}>Nil</Text>
-          </View>
+          <Row icon="pricetag-outline" label="Transaction Type" value={typeLabel(draft.type)} />
+          <Row icon="cube-outline" label="Product" value={draft.product || 'Nil'} />
+          <Row icon="list-outline" label="Quantity" value={quantity || 'Nil'} />
+          <Row icon="wallet-outline" label="Amount" value={amount !== null ? formatNaira(amount) : 'Nil'} />
+          <Row icon="calendar-outline" label="Date" value={draft.date || 'Today'} />
+          {draft.type !== 'expense' && (
+            <Row icon="person-outline" label="Customer/Supplier" value={draft.party || 'Nil'} />
+          )}
+          <Row icon="card-outline" label="Payment Status" value={statusLabel(draft.status)} />
+          {isDebt(draft.type) && <Row icon="alarm-outline" label="Due Date" value={draft.dueDate || 'Not set'} />}
+          <Row icon="document-text-outline" label="Notes" value={draft.notes || 'Nil'} />
         </View>
 
         <View style={styles.noticeRow}>
@@ -98,22 +84,33 @@ export default function RecordReviewScreen() {
           <Text style={styles.noticeText}>Nothing is saved until you confirm</Text>
         </View>
 
-        {/* Action Buttons */}
-        <TouchableOpacity 
-          style={styles.confirmButton}
-          onPress={() => router.push('/record-saved')}
-        >
-          <Text style={styles.confirmButtonText}>Confirm & save</Text>
-        </TouchableOpacity>
+        {error && <Text style={styles.errorText}>{error}</Text>}
 
-        <TouchableOpacity 
-          style={styles.editButton}
-          onPress={() => router.push('/record-edit')}
-        >
+        {duplicate ? (
+          <TouchableOpacity style={styles.confirmButton} onPress={() => save(true)} disabled={saving}>
+            <Text style={styles.confirmButtonText}>Save anyway</Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity
+            style={[styles.confirmButton, saving && { opacity: 0.6 }]}
+            onPress={() => save(false)}
+            disabled={saving}
+          >
+            {saving ? <ActivityIndicator color="#ffffff" /> : <Text style={styles.confirmButtonText}>Confirm & save</Text>}
+          </TouchableOpacity>
+        )}
+
+        <TouchableOpacity style={styles.editButton} onPress={() => router.push('/record-edit')} disabled={saving}>
           <Text style={styles.editButtonText}>Edit details</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.cancelButton} onPress={() => router.push('/dashboard')}>
+        <TouchableOpacity
+          style={styles.cancelButton}
+          onPress={() => {
+            reset();
+            router.replace('/dashboard');
+          }}
+        >
           <Text style={styles.cancelButtonText}>Cancel</Text>
         </TouchableOpacity>
       </ScrollView>
@@ -143,4 +140,7 @@ const styles = StyleSheet.create({
   editButtonText: { color: '#ffffff', fontSize: 15, fontWeight: '700' },
   cancelButton: { alignItems: 'center', paddingVertical: 6 },
   cancelButtonText: { color: '#0b4f8c', fontSize: 15, fontWeight: '700' },
+    errorText: { color: '#dc2626', fontSize: 13, textAlign: 'center', marginBottom: 10 },
+  warnBox: { flexDirection: 'row', gap: 8, backgroundColor: '#fef3c7', borderRadius: 12, padding: 12, marginBottom: 12 },
+  warnText: { flex: 1, fontSize: 12, color: '#92400e' },
 });

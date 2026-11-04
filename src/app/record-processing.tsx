@@ -1,12 +1,33 @@
-import React from 'react';
-import { StyleSheet, Text, View, Image, TouchableOpacity, ScrollView } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { StyleSheet, Text, View, TouchableOpacity, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import BottomNav from './BottomNav';
 import { SafeAreaView } from "react-native-safe-area-context";
+import { parseTranscript, useTransactionDraft } from '@/features/transactions';
 
 export default function RecordProcessingScreen() {
   const router = useRouter();
+  const { draft, update } = useTransactionDraft();
+  const [error, setError] = useState<string | null>(null);
+  const ran = useRef(false);
+
+  const run = async () => {
+    setError(null);
+    const result = await parseTranscript(draft.transcript);
+    if (!result.ok) {
+      setError(result.message);
+      return;
+    }
+    update(result.draft);
+    router.replace('/record-review');
+  };
+
+  useEffect(() => {
+    if (ran.current) return;
+    ran.current = true;
+    run();
+  }, []);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -16,21 +37,10 @@ export default function RecordProcessingScreen() {
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Record Transaction</Text>
 
-        {/* Top Illustration Box */}
-        <View style={styles.illustrationBox}>
-          <Image 
-            source={{ uri: '#' }} // Illustration image reference (src="#")
-            style={styles.illustration}
-            resizeMode="contain"
-          />
-        </View>
-
         <Text style={styles.sectionTitle}>Processing Transaction</Text>
-        <Text style={styles.sectionSubtitle}>This might a few seconds</Text>
+        <Text style={styles.sectionSubtitle}>This might take a few seconds</Text>
 
-        {/* Processing Steps Card */}
         <View style={styles.card}>
-          {/* Step 1: Completed */}
           <View style={styles.stepRow}>
             <View style={styles.iconContainer}>
               <Ionicons name="checkmark-circle" size={24} color="#10b981" />
@@ -43,7 +53,6 @@ export default function RecordProcessingScreen() {
 
           <View style={styles.verticalLineCompleted} />
 
-          {/* Step 2: In Progress */}
           <View style={styles.stepRow}>
             <View style={styles.iconContainer}>
               <View style={styles.activeRadioOuter}>
@@ -52,13 +61,12 @@ export default function RecordProcessingScreen() {
             </View>
             <View style={styles.stepTextContainer}>
               <Text style={styles.stepTitle}>Identifying Transaction</Text>
-              <Text style={styles.stepStatusInProgress}>In progress...</Text>
+              <Text style={styles.stepStatusInProgress}>{error ? 'Could not finish' : 'In progress...'}</Text>
             </View>
           </View>
 
           <View style={styles.verticalLinePending} />
 
-          {/* Step 3: Pending */}
           <View style={styles.stepRow}>
             <View style={styles.iconContainer}>
               <View style={styles.pendingCircle} />
@@ -70,13 +78,20 @@ export default function RecordProcessingScreen() {
           </View>
         </View>
 
-        {/* Temporary Navigation trigger to test review screen */}
-        <TouchableOpacity 
-          style={styles.primaryButton}
-          onPress={() => router.push('/record-review')}
-        >
-          <Text style={styles.primaryButtonText}>Simulate Success & Review</Text>
-        </TouchableOpacity>
+        {error && (
+          <>
+            <Text style={{ color: '#dc2626', fontSize: 13, textAlign: 'center', marginBottom: 14 }}>{error}</Text>
+            <TouchableOpacity style={styles.primaryButton} onPress={run}>
+              <Text style={styles.primaryButtonText}>Try again</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.primaryButton, { backgroundColor: '#0d9488', marginTop: 10 }]}
+              onPress={() => router.replace('/record-manually')}
+            >
+              <Text style={styles.primaryButtonText}>Enter manually</Text>
+            </TouchableOpacity>
+          </>
+        )}
       </ScrollView>
       <BottomNav />
     </SafeAreaView>

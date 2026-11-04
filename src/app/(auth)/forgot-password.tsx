@@ -1,22 +1,35 @@
 import React, { useState } from "react";
-import {
-  StyleSheet,
-  Text,
-  View,
-  TextInput,
-  TouchableOpacity,
-} from "react-native";
+import { StyleSheet, Text, View, TextInput, TouchableOpacity } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { supabase } from "@/lib/supabase";
 
 export default function ForgotPasswordScreen() {
   const router = useRouter();
   const [email, setEmail] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
+
+  const send = async (goNext: boolean) => {
+    setError(null);
+    setInfo(null);
+    const clean = email.trim().toLowerCase();
+    if (!/^\S+@\S+\.\S+$/.test(clean)) return setError("Enter a valid email address.");
+
+    setLoading(true);
+    const { error: err } = await supabase.auth.resetPasswordForEmail(clean);
+    setLoading(false);
+
+    // Same message whether or not the account exists, so the screen can't be used to find accounts
+    if (err && err.status === 429) return setError("Too many requests. Please wait a minute and try again.");
+    setInfo("If an account exists for that email, a code has been sent.");
+    if (goNext) router.push({ pathname: "/change-password", params: { email: clean } });
+  };
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Back Button */}
       <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
         <Ionicons name="chevron-back" size={24} color="#0b4f8c" />
       </TouchableOpacity>
@@ -24,9 +37,7 @@ export default function ForgotPasswordScreen() {
       <View style={styles.content}>
         <View style={styles.header}>
           <Text style={styles.title}>Forgot Password?</Text>
-          <Text style={styles.subtitle}>
-            Input your email address to receive a one-time password
-          </Text>
+          <Text style={styles.subtitle}>Input your email address to receive a one-time password</Text>
         </View>
 
         <View style={styles.inputGroup}>
@@ -37,30 +48,30 @@ export default function ForgotPasswordScreen() {
             placeholderTextColor="#9ca3af"
             keyboardType="email-address"
             autoCapitalize="none"
+            autoCorrect={false}
             value={email}
             onChangeText={setEmail}
           />
         </View>
 
-        <TouchableOpacity
-          style={styles.primaryButton}
-          onPress={() => router.push("../(auth)/change-password")}
-        >
-          <Text style={styles.primaryButtonText}>Send Code</Text>
+        {error && <Text style={styles.errorText}>{error}</Text>}
+        {info && <Text style={styles.infoText}>{info}</Text>}
+
+        <TouchableOpacity style={[styles.primaryButton, loading && { opacity: 0.6 }]} onPress={() => send(false)} disabled={loading}>
+          <Text style={styles.primaryButtonText}>{loading ? "Sending..." : "Send Code"}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
           style={styles.secondaryButton}
-          onPress={() => router.push("../(auth)/change-password")}
+          onPress={() => router.push({ pathname: "/change-password", params: { email: email.trim().toLowerCase() } })}
         >
           <Text style={styles.secondaryButtonText}>Next</Text>
         </TouchableOpacity>
       </View>
 
-      {/* Resend Link */}
       <View style={styles.footer}>
         <Text style={styles.footerText}>Didn’t receive a code? </Text>
-        <TouchableOpacity onPress={() => alert("Code resent!")}>
+        <TouchableOpacity onPress={() => send(false)} disabled={loading}>
           <Text style={styles.linkText}>Resend Code</Text>
         </TouchableOpacity>
       </View>
@@ -174,4 +185,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "700",
   },
+  errorText: { color: "#dc2626", fontSize: 13, textAlign: "center", marginBottom: 12 }, 
+  infoText: { color: "#0d9488", fontSize: 13, textAlign: "center", marginBottom: 12 },
 });

@@ -1,37 +1,69 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, TextInput, TouchableOpacity, SafeAreaView, ScrollView } from 'react-native';
-import { useRouter } from 'expo-router';
+import { StyleSheet, Text, View, TextInput, TouchableOpacity, ScrollView } from 'react-native';
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { supabase } from '@/lib/supabase';
 
 export default function ChangePasswordScreen() {
   const router = useRouter();
+  const { email } = useLocalSearchParams<{ email?: string }>();
   const [otp, setOtp] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleChange = async () => {
+    setError(null);
+    if (!email) return setError('Go back and enter your email first.');
+    if (otp.trim().length < 6) return setError('Enter the code from your email.');
+    if (newPassword.length < 8) return setError('Password must be at least 8 characters.');
+    if (newPassword !== confirmPassword) return setError('Passwords do not match.');
+
+    setLoading(true);
+    const verify = await supabase.auth.verifyOtp({ email, token: otp.trim(), type: 'recovery' });
+    if (verify.error) {
+      setLoading(false);
+      return setError('That code is wrong or has expired. Request a new one.');
+    }
+
+    const update = await supabase.auth.updateUser({ password: newPassword });
+    if (update.error) {
+      setLoading(false);
+      await supabase.auth.signOut();
+      return setError(update.error.message);
+    }
+
+    // End the recovery session so the person logs in fresh with the new password
+    await supabase.auth.signOut();
+    setLoading(false);
+    router.replace('/password-success');
+  };
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
-        {/* Back Button */}
+      <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
           <Ionicons name="chevron-back" size={24} color="#0b4f8c" />
         </TouchableOpacity>
 
         <View style={styles.header}>
           <Text style={styles.title}>Change Password</Text>
-          <Text style={styles.subtitle}>Keep your account secure by using a password you haven’t used before.</Text>
+          <Text style={styles.subtitle}>Enter the code sent to {email ?? 'your email'} and choose a new password.</Text>
         </View>
 
         <View style={styles.form}>
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Verification Code (OTP)</Text>
-            <TextInput 
-              style={styles.input} 
-              placeholder="Enter verification code" 
+            <TextInput
+              style={styles.input}
+              placeholder="Enter verification code"
               placeholderTextColor="#9ca3af"
               keyboardType="number-pad"
+              maxLength={8}
               value={otp}
               onChangeText={setOtp}
             />
@@ -40,11 +72,12 @@ export default function ChangePasswordScreen() {
           <View style={styles.inputGroup}>
             <Text style={styles.label}>New Password</Text>
             <View style={styles.passwordContainer}>
-              <TextInput 
-                style={styles.passwordInput} 
-                placeholder="********" 
+              <TextInput
+                style={styles.passwordInput}
+                placeholder="********"
                 placeholderTextColor="#9ca3af"
                 secureTextEntry={!showNewPassword}
+                autoCapitalize="none"
                 value={newPassword}
                 onChangeText={setNewPassword}
               />
@@ -57,11 +90,12 @@ export default function ChangePasswordScreen() {
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Confirm New Password</Text>
             <View style={styles.passwordContainer}>
-              <TextInput 
-                style={styles.passwordInput} 
-                placeholder="********" 
+              <TextInput
+                style={styles.passwordInput}
+                placeholder="********"
                 placeholderTextColor="#9ca3af"
                 secureTextEntry={!showConfirmPassword}
+                autoCapitalize="none"
                 value={confirmPassword}
                 onChangeText={setConfirmPassword}
               />
@@ -71,11 +105,10 @@ export default function ChangePasswordScreen() {
             </View>
           </View>
 
-          <TouchableOpacity 
-            style={styles.primaryButton} 
-            onPress={() => router.push('../(auth)/password-success')}
-          >
-            <Text style={styles.primaryButtonText}>Change Password</Text>
+          {error && <Text style={styles.errorText}>{error}</Text>}
+
+          <TouchableOpacity style={[styles.primaryButton, loading && { opacity: 0.6 }]} onPress={handleChange} disabled={loading}>
+            <Text style={styles.primaryButtonText}>{loading ? 'Changing...' : 'Change Password'}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.cancelButton} onPress={() => router.back()}>
@@ -186,4 +219,5 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
   },
+  errorText: { color: '#dc2626', fontSize: 13, textAlign: 'center', marginTop: 14 },
 });

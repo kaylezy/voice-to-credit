@@ -26,8 +26,7 @@ export default function VerifyScreen() {
     const result = await verifySignupCode(email ?? "", code);
     setLoading(false);
     if (!result.ok) return setError(result.message);
-    // Verifying also logs the user in. Change "/" to the next screen (for example create business).
-    router.replace("/");
+    
   };
 
   const handleResend = async () => {

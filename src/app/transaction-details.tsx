@@ -1,19 +1,142 @@
-import React, { useState } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, ScrollView, Modal } from 'react-native';
-import { useRouter } from 'expo-router';
+import React, { useCallback, useState } from 'react';
+import {
+  StyleSheet, Text, View, TouchableOpacity, ScrollView, Modal, TextInput, ActivityIndicator,
+} from 'react-native';
+import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import BottomNav from './BottomNav';
 import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  addPayment, deleteTransaction, draftFromTransaction, formatClock, formatDay, formatNaira,
+  getTransactionDetails, isDebt, statusLabel, typeLabel, useTransactionDraft,
+  type DebtSummary, type Transaction,
+} from '@/features/transactions';
+
+type IconName = React.ComponentProps<typeof Ionicons>['name'];
 
 export default function TransactionDetailsScreen() {
   const router = useRouter();
+  const { id } = useLocalSearchParams<{ id?: string }>();
+  const { reset, update } = useTransactionDraft();
+
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [tx, setTx] = useState<Transaction | null>(null);
+  const [partyName, setPartyName] = useState<string | null>(null);
+  const [debt, setDebt] = useState<DebtSummary | null>(null);
+
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showDeletedSuccess, setShowDeletedSuccess] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
-  const handleDeleteConfirm = () => {
+  const [showPayModal, setShowPayModal] = useState(false);
+  const [payAmount, setPayAmount] = useState('');
+  const [payNote, setPayNote] = useState('');
+  const [paying, setPaying] = useState(false);
+  const [payError, setPayError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    if (!id) {
+      setError('Transaction not found.');
+      setLoading(false);
+      return;
+    }
+    const result = await getTransactionDetails(id);
+    if (!result.ok) {
+      setError(result.message);
+      setLoading(false);
+      return;
+    }
+    setTx(result.tx);
+    setPartyName(result.partyName);
+    setDebt(result.debt);
+    setError(null);
+    setLoading(false);
+  }, [id]);
+
+  // Reload whenever the screen comes into view (for example after editing)
+  useFocusEffect(
+    useCallback(() => {
+      load();
+    }, [load])
+  );
+
+  const handleEdit = () => {
+    if (!tx) return;
+    reset();
+    update(draftFromTransaction(tx, partyName));
+    router.push({ pathname: '/record-edit', params: { editId: tx.id } });
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!tx) return;
+    setDeleteError(null);
+    setDeleting(true);
+    const result = await deleteTransaction(tx.id);
+    setDeleting(false);
+    if (!result.ok) {
+      setDeleteError(result.message);
+      return;
+    }
     setShowDeleteModal(false);
     setShowDeletedSuccess(true);
   };
+
+  const handlePay = async () => {
+    if (!tx) return;
+    setPayError(null);
+    setPaying(true);
+    const result = await addPayment(tx.id, payAmount, payNote);
+    setPaying(false);
+    if (!result.ok) {
+      setPayError(result.message);
+      return;
+    }
+    setShowPayModal(false);
+    setPayAmount('');
+    setPayNote('');
+    load();
+  };
+
+  if (loading || !tx) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <ScrollView contentContainerStyle={styles.scrollContainer}>
+          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+            <Ionicons name="chevron-back" size={24} color="#0b4f8c" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Transaction Details</Text>
+          {loading ? (
+            <ActivityIndicator size="large" color="#0b4f8c" style={{ marginTop: 40 }} />
+          ) : (
+            <Text style={{ color: '#dc2626', textAlign: 'center', marginTop: 40 }}>
+              {error ?? 'Transaction not found.'}
+            </Text>
+          )}
+        </ScrollView>
+        <BottomNav />
+      </SafeAreaView>
+    );
+  }
+
+  const quantity = `${tx.quantity ?? ''} ${tx.unit ?? ''}`.trim();
+  const unitPrice = tx.quantity ? `${formatNaira(Number(tx.amount) / tx.quantity)}${tx.unit ? `/${tx.unit}` : ''}` : 'Nil';
+  const paid = tx.payment_status === 'paid';
+  const isVoice = tx.input_method === 'voice';
+
+  const Row = ({ icon, label, value }: { icon: IconName; label: string; value: string }) => (
+    <>
+      <View style={styles.row}>
+        <View style={styles.labelGroup}>
+          <Ionicons name={icon} size={16} color="#0b4f8c" style={{ marginRight: 10 }} />
+          <Text style={styles.label}>{label}</Text>
+        </View>
+        <Text style={[styles.value, { flexShrink: 1, textAlign: 'right', marginLeft: 12 }]}>{value}</Text>
+      </View>
+      <View style={styles.divider} />
+    </>
+  );
 
   return (
     <SafeAreaView style={styles.container}>
@@ -23,117 +146,126 @@ export default function TransactionDetailsScreen() {
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Transaction Details</Text>
 
-        {/* Top Summary Header */}
+        {/* Summary */}
         <View style={styles.summaryCard}>
           <View style={styles.successIconBadge}>
             <Ionicons name="checkmark" size={22} color="#ffffff" />
           </View>
-          <Text style={styles.typeLabel}>Sale</Text>
-          <Text style={styles.amountLabel}>₦80,000</Text>
-          <Text style={styles.productLabel}>Ankara fabric</Text>
-          <View style={styles.paidBadge}>
-            <Text style={styles.paidBadgeText}>Paid</Text>
+          <Text style={styles.typeLabel}>{typeLabel(tx.type)}</Text>
+          <Text style={styles.amountLabel}>{formatNaira(Number(tx.amount))}</Text>
+          <Text style={styles.productLabel}>{tx.product_name || tx.description || typeLabel(tx.type)}</Text>
+          <View style={[styles.paidBadge, !paid && { backgroundColor: '#fef3c7' }]}>
+            <Text style={[styles.paidBadgeText, !paid && { color: '#b45309' }]}>{statusLabel(tx.payment_status)}</Text>
           </View>
         </View>
 
-        {/* Transaction Information List */}
+        {/* Debt summary and payments */}
+        {isDebt(tx.type) && debt && (
+          <>
+            <Text style={styles.sectionHeader}>{tx.type === 'receivable' ? 'Money owed to you' : 'Money you owe'}</Text>
+            <View style={styles.infoCard}>
+              <Row icon="cash-outline" label="Total amount" value={formatNaira(Number(tx.amount))} />
+              <Row icon="checkmark-done-outline" label="Paid so far" value={formatNaira(debt.amount_paid)} />
+              <Row icon="hourglass-outline" label="Still outstanding" value={formatNaira(debt.outstanding)} />
+              {tx.due_date && <Row icon="alarm-outline" label="Due date" value={formatDay(tx.due_date)} />}
+              {debt.payments.map((p) => (
+                <Row
+                  key={p.id}
+                  icon="receipt-outline"
+                  label={`Payment · ${formatDay(p.paid_at)}`}
+                  value={`${formatNaira(Number(p.amount))}${p.note ? ` (${p.note})` : ''}`}
+                />
+              ))}
+            </View>
+            {debt.outstanding > 0 && (
+              <TouchableOpacity style={styles.editButton} onPress={() => setShowPayModal(true)}>
+                <Text style={styles.editButtonText}>Record payment</Text>
+              </TouchableOpacity>
+            )}
+          </>
+        )}
+
+        {/* Information */}
         <Text style={styles.sectionHeader}>Transaction Information</Text>
         <View style={styles.infoCard}>
-          <View style={styles.row}>
-            <View style={styles.labelGroup}>
-              <Ionicons name="key-outline" size={16} color="#0b4f8c" style={{ marginRight: 10 }} />
-              <Text style={styles.label}>Transaction ID</Text>
-            </View>
-            <Text style={styles.value}>TXN-01234</Text>
-          </View>
-          <View style={styles.divider} />
-
-          <View style={styles.row}>
-            <View style={styles.labelGroup}>
-              <Ionicons name="list-outline" size={16} color="#0b4f8c" style={{ marginRight: 10 }} />
-              <Text style={styles.label}>Quantity</Text>
-            </View>
-            <Text style={styles.value}>20 Yards</Text>
-          </View>
-          <View style={styles.divider} />
-
-          <View style={styles.row}>
-            <View style={styles.labelGroup}>
-              <Ionicons name="pricetag-outline" size={16} color="#0b4f8c" style={{ marginRight: 10 }} />
-              <Text style={styles.label}>Unit Price</Text>
-            </View>
-            <Text style={styles.value}>₦4,000/yard</Text>
-          </View>
-          <View style={styles.divider} />
-
-          <View style={styles.row}>
-            <View style={styles.labelGroup}>
-              <Ionicons name="calendar-outline" size={16} color="#0b4f8c" style={{ marginRight: 10 }} />
-              <Text style={styles.label}>Date</Text>
-            </View>
-            <Text style={styles.value}>Today</Text>
-          </View>
-          <View style={styles.divider} />
-
-          <View style={styles.row}>
-            <View style={styles.labelGroup}>
-              <Ionicons name="time-outline" size={16} color="#0b4f8c" style={{ marginRight: 10 }} />
-              <Text style={styles.label}>Time</Text>
-            </View>
-            <Text style={styles.value}>05:32 PM</Text>
-          </View>
-          <View style={styles.divider} />
-
-          <View style={styles.row}>
-            <View style={styles.labelGroup}>
-              <Ionicons name="person-outline" size={16} color="#0b4f8c" style={{ marginRight: 10 }} />
-              <Text style={styles.label}>Customer/Supplier</Text>
-            </View>
-            <Text style={styles.value}>Nil</Text>
-          </View>
-          <View style={styles.divider} />
-
-          <View style={styles.row}>
-            <View style={styles.labelGroup}>
-              <Ionicons name="document-text-outline" size={16} color="#0b4f8c" style={{ marginRight: 10 }} />
-              <Text style={styles.label}>Notes</Text>
-            </View>
-            <Text style={styles.value}>“Cash payment made in full”</Text>
-          </View>
+          <Row icon="key-outline" label="Transaction ID" value={`TXN-${tx.id.slice(0, 8).toUpperCase()}`} />
+          <Row icon="list-outline" label="Quantity" value={quantity || 'Nil'} />
+          <Row icon="pricetag-outline" label="Unit Price" value={unitPrice} />
+          <Row icon="calendar-outline" label="Date" value={formatDay(tx.transaction_date)} />
+          <Row icon="time-outline" label="Time" value={formatClock(tx.created_at)} />
+          {tx.type !== 'expense' && <Row icon="person-outline" label="Customer/Supplier" value={partyName ?? 'Nil'} />}
+          <Row icon="document-text-outline" label="Notes" value={tx.notes ? `“${tx.notes}”` : 'Nil'} />
         </View>
 
         {/* Record Method */}
         <Text style={styles.sectionHeader}>Record Method</Text>
         <View style={styles.methodCard}>
           <View style={styles.methodLeft}>
-            <Ionicons name="mic-outline" size={20} color="#0b4f8c" style={{ marginRight: 12 }} />
+            <Ionicons name={isVoice ? 'mic-outline' : 'create-outline'} size={20} color="#0b4f8c" style={{ marginRight: 12 }} />
             <View>
-              <Text style={styles.methodTitle}>Voice Recording</Text>
-              <Text style={styles.methodSub}>Processed and transcribed by AI</Text>
+              <Text style={styles.methodTitle}>{isVoice ? 'Voice Recording' : 'Manual Entry'}</Text>
+              <Text style={styles.methodSub}>{isVoice ? 'Processed and transcribed by AI' : 'Entered by hand'}</Text>
             </View>
           </View>
           <View style={styles.voiceBadge}>
-            <Text style={styles.voiceBadgeText}>Voice</Text>
+            <Text style={styles.voiceBadgeText}>{isVoice ? 'Voice' : 'Manual'}</Text>
           </View>
         </View>
 
-        {/* Action Buttons */}
-        <TouchableOpacity 
-          style={styles.editButton}
-          onPress={() => router.push('/record-edit')}
-        >
+        <TouchableOpacity style={styles.editButton} onPress={handleEdit}>
           <Text style={styles.editButtonText}>Edit Transaction</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.deleteButton}
-          onPress={() => setShowDeleteModal(true)}
+          onPress={() => {
+            setDeleteError(null);
+            setShowDeleteModal(true);
+          }}
         >
           <Text style={styles.deleteButtonText}>Delete Transaction</Text>
         </TouchableOpacity>
       </ScrollView>
 
-      {/* Delete Confirmation Modal */}
+      {/* Record payment modal */}
+      <Modal visible={showPayModal} transparent animationType="fade">
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <TouchableOpacity style={styles.closeButton} onPress={() => setShowPayModal(false)}>
+              <Ionicons name="close" size={22} color="#0b4f8c" />
+            </TouchableOpacity>
+            <Text style={styles.modalTitle}>Record payment</Text>
+            <Text style={styles.modalSubtitle}>
+              Still outstanding: {formatNaira(debt?.outstanding ?? 0)}
+            </Text>
+
+            <TextInput
+              style={{ width: '100%', height: 46, borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 12, paddingHorizontal: 16, marginBottom: 10, fontSize: 14 }}
+              placeholder="Amount (₦)"
+              placeholderTextColor="#9ca3af"
+              keyboardType="numeric"
+              value={payAmount}
+              onChangeText={setPayAmount}
+            />
+            <TextInput
+              style={{ width: '100%', height: 46, borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 12, paddingHorizontal: 16, marginBottom: 10, fontSize: 14 }}
+              placeholder="Note (optional)"
+              placeholderTextColor="#9ca3af"
+              maxLength={200}
+              value={payNote}
+              onChangeText={setPayNote}
+            />
+
+            {payError && <Text style={{ color: '#dc2626', fontSize: 13, textAlign: 'center', marginBottom: 10 }}>{payError}</Text>}
+
+            <TouchableOpacity style={[styles.viewLedgerButton, paying && { opacity: 0.6 }]} onPress={handlePay} disabled={paying}>
+              <Text style={styles.viewLedgerText}>{paying ? 'Saving...' : 'Save payment'}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Delete confirmation modal */}
       <Modal visible={showDeleteModal} transparent animationType="fade">
         <View style={styles.modalBackdrop}>
           <View style={styles.modalCard}>
@@ -150,8 +282,16 @@ export default function TransactionDetailsScreen() {
               This action will permanently remove this transaction from your ledger. You can’t undo this action.
             </Text>
 
-            <TouchableOpacity style={styles.confirmDeleteButton} onPress={handleDeleteConfirm}>
-              <Text style={styles.confirmDeleteText}>Delete Transaction</Text>
+            {deleteError && (
+              <Text style={{ color: '#dc2626', fontSize: 13, textAlign: 'center', marginBottom: 12 }}>{deleteError}</Text>
+            )}
+
+            <TouchableOpacity
+              style={[styles.confirmDeleteButton, deleting && { opacity: 0.6 }]}
+              onPress={handleDeleteConfirm}
+              disabled={deleting}
+            >
+              <Text style={styles.confirmDeleteText}>{deleting ? 'Deleting...' : 'Delete Transaction'}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.cancelDeleteButton} onPress={() => setShowDeleteModal(false)}>
@@ -161,11 +301,11 @@ export default function TransactionDetailsScreen() {
         </View>
       </Modal>
 
-      {/* Transaction Deleted Success Modal */}
+      {/* Deleted success modal */}
       <Modal visible={showDeletedSuccess} transparent animationType="fade">
         <View style={styles.modalBackdrop}>
           <View style={styles.modalCard}>
-            <TouchableOpacity style={styles.closeButton} onPress={() => router.push('/dashboard')}>
+            <TouchableOpacity style={styles.closeButton} onPress={() => router.replace('/dashboard')}>
               <Ionicons name="close" size={22} color="#0b4f8c" />
             </TouchableOpacity>
 
@@ -174,21 +314,13 @@ export default function TransactionDetailsScreen() {
             </View>
 
             <Text style={styles.modalTitle}>Transaction Deleted!</Text>
-            <Text style={styles.modalSubtitle}>
-              Your transaction have been permanently deleted successfully
-            </Text>
+            <Text style={styles.modalSubtitle}>Your transaction has been permanently deleted successfully</Text>
 
-            <TouchableOpacity 
-              style={styles.viewLedgerButton}
-              onPress={() => router.push('../ledger')}
-            >
+            <TouchableOpacity style={styles.viewLedgerButton} onPress={() => router.replace('/ledger')}>
               <Text style={styles.viewLedgerText}>View Ledger</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity 
-              style={styles.returnDashboardButton}
-              onPress={() => router.push('/dashboard')}
-            >
+            <TouchableOpacity style={styles.returnDashboardButton} onPress={() => router.replace('/dashboard')}>
               <Text style={styles.returnDashboardText}>Return to dashboard</Text>
             </TouchableOpacity>
           </View>

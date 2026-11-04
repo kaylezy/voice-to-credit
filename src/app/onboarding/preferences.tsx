@@ -3,13 +3,19 @@ import { StyleSheet, Text, View, TextInput, TouchableOpacity, ScrollView } from 
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useOnboardingDraft } from "@/features/business";
 
 export default function PreferencesScreen() {
   const router = useRouter();
-  const [location, setLocation] = useState('Yaba, Lagos');
-  const [language, setLanguage] = useState('English');
-  const [currency, setCurrency] = useState('Nigerian Naira (₦)');
-  const [startDate, setStartDate] = useState('12/03/2022');
+  const { draft, update } = useOnboardingDraft();
+  const location = draft.location;
+  const setLocation = (v: string) => update({ location: v });
+  const language = draft.language;
+  const setLanguage = (v: string) => update({ language: v });
+  const currency = draft.currency;
+  const setCurrency = (v: string) => update({ currency: v });
+  const startDate = draft.startDate;
+  const setStartDate = (v: string) => update({ startDate: v });
 
   return (
     <SafeAreaView style={styles.container}>

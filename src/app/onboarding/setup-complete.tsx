@@ -3,9 +3,15 @@ import { StyleSheet, Text, View, Image, TouchableOpacity, } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useBusinessStatus } from "@/features/business";
 
 export default function SetupCompleteScreen() {
   const router = useRouter();
+  const { refresh } = useBusinessStatus();
+  const goToDashboard = async () => {
+    await refresh();
+    router.replace("/dashboard");
+  };
 
   return (
     <SafeAreaView style={styles.container}>

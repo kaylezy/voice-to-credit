@@ -1,21 +1,64 @@
-import React, { useState } from 'react';
-import { StyleSheet, Text, View, TextInput, TouchableOpacity, ScrollView } from 'react-native';
-import { useRouter } from 'expo-router';
+import React, { useCallback, useState } from 'react';
+import { StyleSheet, Text, View, TextInput, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import BottomNav from './BottomNav';
 import { SafeAreaView } from "react-native-safe-area-context";
+import { apiFetch } from '@/lib/api';
 
 export default function SettingsBusinessScreen() {
   const router = useRouter();
-  const [bizName, setBizName] = useState("Amaka's Provision");
-  const [bizCat, setBizCat] = useState("Retail & Provisions");
-  const [bizLoc, setBizLoc] = useState("Yaba, Lagos, Nigeria");
-  const [bizPhone, setBizPhone] = useState("+234 801 234 5678");
-  const [bizDate, setBizDate] = useState("March 2021");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [bizName, setBizName] = useState('');
+  const [bizCat, setBizCat] = useState('');
+  const [bizLoc, setBizLoc] = useState('');
+  const [bizDesc, setBizDesc] = useState('');
+
+  useFocusEffect(
+    useCallback(() => {
+      (async () => {
+        const res = await apiFetch<any[]>('/api/businesses');
+        if (res.ok && res.data[0]) {
+          const b = res.data[0];
+          setBizName(b.name ?? '');
+          setBizCat(b.category ?? '');
+          setBizLoc(b.location ?? '');
+          setBizDesc(b.description ?? '');
+        } else {
+          setError('Could not load your business. Check your connection.');
+        }
+        setLoading(false);
+      })();
+    }, [])
+  );
+
+  const handleSave = async () => {
+    setError(null);
+    if (!bizName.trim()) return setError('Business name is required.');
+
+    setSaving(true);
+    const res = await apiFetch('/api/businesses', {
+      method: 'PATCH',
+      body: {
+        name: bizName.trim(),
+        ...(bizCat.trim() ? { category: bizCat.trim() } : {}),
+        ...(bizLoc.trim() ? { location: bizLoc.trim() } : {}),
+        ...(bizDesc.trim() ? { description: bizDesc.trim() } : {}),
+      },
+    });
+    setSaving(false);
+
+    if (!res.ok) {
+      return setError(res.error === 'network_error' ? "Can't reach the server. Try again." : 'Could not save. Try again.');
+    }
+    router.replace('/profile-saved');
+  };
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
           <Ionicons name="chevron-back" size={24} color="#0b4f8c" />
         </TouchableOpacity>
@@ -25,48 +68,41 @@ export default function SettingsBusinessScreen() {
           <Ionicons name="lock-closed-outline" size={20} color="#0d9488" style={{ marginRight: 10 }} />
           <View style={{ flex: 1 }}>
             <Text style={styles.bannerTitle}>Keep your business profile current</Text>
-            <Text style={styles.bannerSub}>These details appear on your financial profile and shared reports[cite: 71].</Text>
+            <Text style={styles.bannerSub}>These details appear on your financial profile and shared reports.</Text>
           </View>
         </View>
 
-        <View style={styles.card}>
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Business name</Text>
-            <TextInput style={styles.input} value={bizName} onChangeText={setBizName} />
-          </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Business Category</Text>
-            <View style={styles.dropdown}>
-              <Text style={{ fontSize: 14, color: '#1f2937' }}>{bizCat}</Text>
-              <Ionicons name="chevron-down" size={18} color="#6b7280" />
+        {loading ? (
+          <ActivityIndicator size="large" color="#0b4f8c" style={{ marginTop: 40 }} />
+        ) : (
+          <>
+            <View style={styles.card}>
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Business name</Text>
+                <TextInput style={styles.input} value={bizName} onChangeText={setBizName} />
+              </View>
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Business Category</Text>
+                <TextInput style={styles.input} value={bizCat} onChangeText={setBizCat} />
+              </View>
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Business location</Text>
+                <TextInput style={styles.input} value={bizLoc} onChangeText={setBizLoc} />
+              </View>
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Description</Text>
+                <TextInput style={[styles.input, { height: 80, paddingTop: 12 }]} value={bizDesc} onChangeText={setBizDesc} multiline textAlignVertical="top" />
+              </View>
             </View>
-          </View>
 
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Business location</Text>
-            <TextInput style={styles.input} value={bizLoc} onChangeText={setBizLoc} />
-          </View>
+            {error && <Text style={styles.errorText}>{error}</Text>}
 
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Business phone number</Text>
-            <TextInput style={styles.input} value={bizPhone} onChangeText={setBizPhone} />
-          </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Business start date</Text>
-            <View style={styles.dropdown}>
-              <TextInput style={{ flex: 1, fontSize: 14, color: '#1f2937' }} value={bizDate} onChangeText={setBizDate} />
-              <Ionicons name="calendar-outline" size={18} color="#6b7280" />
-            </View>
-          </View>
-        </View>
-
-        <TouchableOpacity style={styles.saveBtn} onPress={() => router.push('../profile-saved')}>
-          <Text style={styles.saveBtnText}>Save Changes</Text>
-        </TouchableOpacity>
+            <TouchableOpacity style={[styles.saveBtn, saving && { opacity: 0.6 }]} onPress={handleSave} disabled={saving}>
+              <Text style={styles.saveBtnText}>{saving ? 'Saving...' : 'Save Changes'}</Text>
+            </TouchableOpacity>
+          </>
+        )}
       </ScrollView>
-
       <BottomNav />
     </SafeAreaView>
   );
@@ -87,4 +123,5 @@ const styles = StyleSheet.create({
   dropdown: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#ffffff', borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 12, height: 46, paddingHorizontal: 16 },
   saveBtn: { backgroundColor: '#0b4f8c', height: 48, borderRadius: 24, justifyContent: 'center', alignItems: 'center', shadowColor: '#0b4f8c', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 6, elevation: 3 },
   saveBtnText: { color: '#ffffff', fontSize: 15, fontWeight: '700' },
+  errorText: { color: '#dc2626', fontSize: 13, textAlign: 'center', marginBottom: 12 },
 });

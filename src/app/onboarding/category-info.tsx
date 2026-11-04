@@ -3,7 +3,7 @@ import { StyleSheet, Text, View, TouchableOpacity, ScrollView } from 'react-nati
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from "react-native-safe-area-context";
-
+import { useOnboardingDraft } from "@/features/business";
 
 const categories = [
   { id: '1', name: 'Fashion & Clothing', icon: 'shirt-outline' },
@@ -18,7 +18,9 @@ const categories = [
 
 export default function CategoryScreen() {
   const router = useRouter();
-  const [selectedCategory, setSelectedCategory] = useState('Retail & Provision');
+    const { draft, update } = useOnboardingDraft();
+  const selectedCategory = draft.category;
+  const setSelectedCategory = (v: string) => update({ category: v });
 
   return (
     <SafeAreaView style={styles.container}>

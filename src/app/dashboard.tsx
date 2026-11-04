@@ -1,228 +1,114 @@
-import React, { useState } from 'react';
-import { StyleSheet, Text, View, Image, TouchableOpacity, ScrollView } from 'react-native';
+import React from 'react';
+import {
+  StyleSheet, Text, View, TouchableOpacity, ScrollView, RefreshControl, ActivityIndicator,
+} from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import BottomNav from './BottomNav';
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useDashboard, type DashboardData } from '@/features/dashboard';
+
+const naira = (n: number) => `₦${n.toLocaleString('en-US', { maximumFractionDigits: 2 })}`;
+
+const greeting = () => {
+  const h = new Date().getHours();
+  return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
+};
+
+type CardDef = {
+  key: keyof DashboardData;
+  label: string;
+  note: string;
+  icon: React.ComponentProps<typeof Ionicons>['name'];
+  color: string;
+  bg: string;
+};
+
+const CARD_ROWS: CardDef[][] = [
+  [
+    { key: 'total_sales', label: 'Total Sales', note: 'All time', icon: 'bar-chart-outline', color: '#0b4f8c', bg: '#e0f2fe' },
+    { key: 'total_purchases', label: 'Purchases', note: 'All time', icon: 'bag-handle-outline', color: '#ef4444', bg: '#fee2e2' },
+  ],
+  [
+    { key: 'total_expenses', label: 'Expenses', note: 'All time', icon: 'wallet-outline', color: '#f59e0b', bg: '#fef3c7' },
+    { key: 'estimated_gross_profit', label: 'Est. gross profit', note: 'Sales minus purchases', icon: 'trending-up-outline', color: '#10b981', bg: '#d1fae5' },
+  ],
+  [
+    { key: 'total_receivables', label: 'Receivables', note: 'Still owed to you', icon: 'time-outline', color: '#06b6d4', bg: '#cffafe' },
+    { key: 'total_payables', label: 'Payables', note: 'Still owed by you', icon: 'bus-outline', color: '#4f46e5', bg: '#e0e7ff' },
+  ],
+];
 
 export default function DashboardScreen() {
   const router = useRouter();
-  const [hasRecords, setHasRecords] = useState<boolean>(true);
+  const { data, name, loading, refreshing, error, refresh } = useDashboard();
+
+  const firstName = name?.trim().split(' ')[0] ?? '';
+  const hasRecords = !!data && Object.values(data).some((v) => v !== 0);
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContainer}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
+      >
         {/* Top Header */}
         <View style={styles.headerRow}>
           <View>
             <Text style={styles.dashboardTitle}>Dashboard</Text>
-            <Text style={styles.greetingText}>Good morning</Text>
-            <Text style={styles.userNameText}>Amina!</Text>
+            <Text style={styles.greetingText}>{greeting()}</Text>
+            <Text style={styles.userNameText}>{firstName ? `${firstName}!` : ' '}</Text>
           </View>
-          <TouchableOpacity onPress={() => setHasRecords(!hasRecords)}>
-            <Image
-              source={{ uri: '#' }}
-              style={styles.avatar}
-            />
-          </TouchableOpacity>
+          <View style={[styles.avatar, { justifyContent: 'center', alignItems: 'center' }]}>
+            <Text style={styles.avatarInitial}>{firstName ? firstName[0].toUpperCase() : ''}</Text>
+          </View>
         </View>
 
-        {!hasRecords ? (
-          <View style={styles.newUserSection}>
-            <View style={styles.illustrationBox}>
-              <Image
-                source={{ uri: '#' }}
-                style={styles.illustration}
-                resizeMode="contain"
-              />
-            </View>
+        {loading && <ActivityIndicator size="large" color="#0b4f8c" style={{ marginTop: 40 }} />}
 
-            <Text style={styles.welcomeHeading}>
-              Let’s start tracking{'\n'}your business
-            </Text>
-            <Text style={styles.welcomeSubtext}>
-              Turn your everyday transactions into structured records. Just speak, we'll handle the rest.
-            </Text>
+        {!loading && error && !data && <Text style={styles.errorText}>{error}</Text>}
 
-            <View style={styles.gridRow}>
-              <View style={[styles.card, { borderTopColor: '#0b4f8c' }]}>
-                <View style={styles.cardHeader}>
-                  <View style={[styles.cardIconBox, { backgroundColor: '#e0f2fe' }]}>
-                    <Ionicons name="bar-chart-outline" size={16} color="#0b4f8c" />
+        {!loading && data && (
+          <View style={hasRecords ? styles.existingUserSection : styles.newUserSection}>
+            {!hasRecords && (
+              <>
+                <Text style={styles.welcomeHeading}>
+                  Let’s start tracking{'\n'}your business
+                </Text>
+                <Text style={styles.welcomeSubtext}>
+                  Turn your everyday transactions into structured records. Just speak, we'll handle the rest.
+                </Text>
+              </>
+            )}
+
+            {CARD_ROWS.map((row, i) => (
+              <View key={i} style={[styles.gridRow, !hasRecords && { alignSelf: 'stretch' }]}>
+                {row.map((c) => (
+                  <View key={c.key} style={[styles.card, { borderTopColor: c.color }]}>
+                    <View style={styles.cardHeader}>
+                      <View style={[styles.cardIconBox, { backgroundColor: c.bg }]}>
+                        <Ionicons name={c.icon} size={16} color={c.color} />
+                      </View>
+                      <Text style={styles.cardLabel}>{c.label}</Text>
+                    </View>
+                    <Text style={styles.cardValue}>{naira(data[c.key])}</Text>
+                    <Text style={styles.cardNote}>{c.note}</Text>
                   </View>
-                  <Text style={styles.cardLabel}>Sales</Text>
-                </View>
-                <Text style={styles.cardValue}>₦0</Text>
-                <Text style={styles.cardChangeZero}>0</Text>
+                ))}
               </View>
-
-              <View style={[styles.card, { borderTopColor: '#ef4444' }]}>
-                <View style={styles.cardHeader}>
-                  <View style={[styles.cardIconBox, { backgroundColor: '#fee2e2' }]}>
-                    <Ionicons name="bag-handle-outline" size={16} color="#ef4444" />
-                  </View>
-                  <Text style={styles.cardLabel}>Purchases</Text>
-                </View>
-                <Text style={styles.cardValue}>₦0</Text>
-                <Text style={styles.cardChangeZeroRed}>0</Text>
-              </View>
-            </View>
-
-            <View style={styles.gridRow}>
-              <View style={[styles.card, { borderTopColor: '#f59e0b' }]}>
-                <View style={styles.cardHeader}>
-                  <View style={[styles.cardIconBox, { backgroundColor: '#fef3c7' }]}>
-                    <Ionicons name="wallet-outline" size={16} color="#f59e0b" />
-                  </View>
-                  <Text style={styles.cardLabel}>Expenses</Text>
-                </View>
-                <Text style={styles.cardValue}>₦0</Text>
-                <Text style={styles.cardChangeZeroOrange}>0</Text>
-              </View>
-
-              <View style={[styles.card, { borderTopColor: '#10b981' }]}>
-                <View style={styles.cardHeader}>
-                  <View style={[styles.cardIconBox, { backgroundColor: '#d1fae5' }]}>
-                    <Ionicons name="trending-up-outline" size={16} color="#10b981" />
-                  </View>
-                  <Text style={styles.cardLabel}>Est. gross profit</Text>
-                </View>
-                <Text style={styles.cardValue}>₦0</Text>
-                <Text style={styles.cardChangeZeroGreen}>0</Text>
-              </View>
-            </View>
+            ))}
 
             <TouchableOpacity
-              style={styles.recordButton}
+              style={[styles.recordButton, !hasRecords && { alignSelf: 'stretch' }]}
               onPress={() => router.push('/record-transaction')}
             >
               <Text style={styles.recordButtonText}>Record a Transaction</Text>
             </TouchableOpacity>
 
-            <Text style={styles.emptyStateNotice}>
-              Your confirmed records will appear here.
-            </Text>
-          </View>
-        ) : (
-          <View style={styles.existingUserSection}>
-            <View style={styles.gridRow}>
-              <View style={[styles.card, { borderTopColor: '#0b4f8c' }]}>
-                <View style={styles.cardHeader}>
-                  <View style={[styles.cardIconBox, { backgroundColor: '#e0f2fe' }]}>
-                    <Ionicons name="bar-chart-outline" size={16} color="#0b4f8c" />
-                  </View>
-                  <Text style={styles.cardLabel}>Total Sales</Text>
-                </View>
-                <Text style={styles.cardValue}>₦450, 000</Text>
-                <Text style={styles.cardChangePositive}>+12.4% in 7 Days</Text>
-              </View>
-
-              <View style={[styles.card, { borderTopColor: '#ef4444' }]}>
-                <View style={styles.cardHeader}>
-                  <View style={[styles.cardIconBox, { backgroundColor: '#fee2e2' }]}>
-                    <Ionicons name="bag-handle-outline" size={16} color="#ef4444" />
-                  </View>
-                  <Text style={styles.cardLabel}>Purchases</Text>
-                </View>
-                <Text style={styles.cardValue}>₦210, 000</Text>
-                <Text style={styles.cardChangeNegative}>-1.5% in 7 Days</Text>
-              </View>
-            </View>
-
-            <View style={styles.gridRow}>
-              <View style={[styles.card, { borderTopColor: '#f59e0b' }]}>
-                <View style={styles.cardHeader}>
-                  <View style={[styles.cardIconBox, { backgroundColor: '#fef3c7' }]}>
-                    <Ionicons name="wallet-outline" size={16} color="#f59e0b" />
-                  </View>
-                  <Text style={styles.cardLabel}>Expenses</Text>
-                </View>
-                <Text style={styles.cardValue}>₦38, 000</Text>
-                <Text style={styles.cardChangeOrange}>+2.4% in 7 Days</Text>
-              </View>
-
-              <View style={[styles.card, { borderTopColor: '#10b981' }]}>
-                <View style={styles.cardHeader}>
-                  <View style={[styles.cardIconBox, { backgroundColor: '#d1fae5' }]}>
-                    <Ionicons name="trending-up-outline" size={16} color="#10b981" />
-                  </View>
-                  <Text style={styles.cardLabel}>Est. gross profit</Text>
-                </View>
-                <Text style={styles.cardValue}>₦240, 000</Text>
-                <Text style={styles.cardChangePositive}>+5.9% in 7 Days</Text>
-              </View>
-            </View>
-
-            <View style={styles.gridRow}>
-              <View style={[styles.card, { borderTopColor: '#06b6d4' }]}>
-                <View style={styles.cardHeader}>
-                  <View style={[styles.cardIconBox, { backgroundColor: '#cffafe' }]}>
-                    <Ionicons name="time-outline" size={16} color="#06b6d4" />
-                  </View>
-                  <Text style={styles.cardLabel}>Receivables</Text>
-                </View>
-                <Text style={styles.cardValue}>₦45, 000</Text>
-                <Text style={styles.cardChangeOrange}>+2.4% in 7 Days</Text>
-              </View>
-
-              <View style={[styles.card, { borderTopColor: '#4f46e5' }]}>
-                <View style={styles.cardHeader}>
-                  <View style={[styles.cardIconBox, { backgroundColor: '#e0e7ff' }]}>
-                    <Ionicons name="bus-outline" size={16} color="#4f46e5" />
-                  </View>
-                  <Text style={styles.cardLabel}>Payables</Text>
-                </View>
-                <Text style={styles.cardValue}>₦70, 000</Text>
-                <Text style={styles.cardChangePositive}>+5.9% in 7 Days</Text>
-              </View>
-            </View>
-
-            {/* Trends Section */}
-            <View style={styles.trendsHeader}>
-              <Text style={styles.trendsTitle}>Business Trends</Text>
-              <Text style={styles.trendsDate}>Apr - Jul 2026</Text>
-            </View>
-            <Text style={styles.trendsSubtitle}>Sales and Expenses</Text>
-
-            <View style={styles.chartsRow}>
-              <View style={styles.chartCard}>
-                <View style={styles.chartTitleRow}>
-                  <View style={[styles.legendDot, { backgroundColor: '#10b981' }]} />
-                  <Text style={styles.chartTitleText}>Sales trend</Text>
-                </View>
-                <Image
-                  source={{ uri: '#' }}
-                  style={styles.chartPlaceholder}
-                  resizeMode="contain"
-                />
-              </View>
-
-              <View style={styles.chartCard}>
-                <View style={styles.chartTitleRow}>
-                  <View style={[styles.legendDot, { backgroundColor: '#f59e0b' }]} />
-                  <Text style={styles.chartTitleText}>Expense trend</Text>
-                </View>
-                <Image
-                  source={{ uri: '#' }}
-                  style={styles.chartPlaceholder}
-                  resizeMode="contain"
-                />
-              </View>
-            </View>
-
-            <TouchableOpacity
-              style={styles.recordButton}
-              onPress={() => router.push('/record-transaction')}
-            >
-              <Text style={styles.recordButtonText}>Record a Transaction</Text>
-            </TouchableOpacity>
-
-            <View style={styles.insightBox}>
-              <Ionicons name="bulb-outline" size={20} color="#0d9488" />
-              <Text style={styles.insightText}>
-                Your sales are up 12% compared with last month
-              </Text>
-            </View>
+            {!hasRecords && (
+              <Text style={styles.emptyStateNotice}>Your confirmed records will appear here.</Text>
+            )}
           </View>
         )}
       </ScrollView>
@@ -313,4 +199,7 @@ const styles = StyleSheet.create({
   emptyStateNotice: { fontSize: 12, color: '#6b7280', textAlign: 'center', marginTop: 8 },
   insightBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#ccfbf1', borderRadius: 12, padding: 14, gap: 10 },
   insightText: { flex: 1, fontSize: 13, fontWeight: '600', color: '#0f766e' },
+    cardNote: { fontSize: 10, fontWeight: '600', color: '#9ca3af' },
+  avatarInitial: { fontSize: 18, fontWeight: '800', color: '#0b4f8c' },
+  errorText: { color: '#dc2626', fontSize: 13, textAlign: 'center', marginTop: 40 },
 });

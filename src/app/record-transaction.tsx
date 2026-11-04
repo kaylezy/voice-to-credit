@@ -4,9 +4,17 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import BottomNav from './BottomNav';
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useCallback } from 'react';
+import { useFocusEffect } from 'expo-router';
+import { AudioModule } from 'expo-audio';
+import { useTransactionDraft } from '@/features/transactions';
+
 
 export default function RecordTransactionScreen() {
   const router = useRouter();
+    const { reset } = useTransactionDraft();
+  // A fresh draft every time the user starts a new record
+  useFocusEffect(useCallback(() => { reset(); }, [reset]));
   const [showMicPermissionModal, setShowMicPermissionModal] = useState<boolean>(false);
   const [selectedLanguage] = useState<string>('English');
 
@@ -14,9 +22,14 @@ export default function RecordTransactionScreen() {
     setShowMicPermissionModal(true);
   };
 
-  const handleAllowPermission = () => {
+    const handleAllowPermission = async () => {
     setShowMicPermissionModal(false);
-    router.push('../record-active');
+    const status = await AudioModule.requestRecordingPermissionsAsync();
+    if (!status.granted) {
+      alert('Microphone access is needed to record. You can enter the transaction manually instead.');
+      return;
+    }
+    router.push('/record-active');
   };
 
   return (

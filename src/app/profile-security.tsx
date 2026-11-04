@@ -1,100 +1,90 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, TextInput, TouchableOpacity, ScrollView, Switch } from 'react-native';
+import { StyleSheet, Text, View, TextInput, TouchableOpacity, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import BottomNav from './BottomNav';
 import { SafeAreaView } from "react-native-safe-area-context";
+import { supabase } from '@/lib/supabase';
 
 export default function ProfileSecurityScreen() {
   const router = useRouter();
-  const [tab, setTab] = useState<'password' | '2fa'>('password');
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [is2FAEnabled, setIs2FAEnabled] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState(false);
+
+  const handleChange = async () => {
+    setError(null);
+    setDone(false);
+    if (!currentPassword) return setError('Enter your current password.');
+    if (newPassword.length < 8) return setError('New password must be at least 8 characters.');
+    if (newPassword !== confirmPassword) return setError('New passwords do not match.');
+    if (newPassword === currentPassword) return setError('Choose a password you have not used before.');
+
+    setLoading(true);
+    const { data } = await supabase.auth.getUser();
+    const email = data.user?.email;
+    if (!email) {
+      setLoading(false);
+      return setError('Please log in again.');
+    }
+
+    // Confirm the current password first
+    const check = await supabase.auth.signInWithPassword({ email, password: currentPassword });
+    if (check.error) {
+      setLoading(false);
+      return setError('Current password is incorrect.');
+    }
+
+    const update = await supabase.auth.updateUser({ password: newPassword });
+    setLoading(false);
+    if (update.error) return setError(update.error.message);
+
+    setCurrentPassword('');
+    setNewPassword('');
+    setConfirmPassword('');
+    setDone(true);
+  };
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
           <Ionicons name="chevron-back" size={24} color="#0b4f8c" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Security & Access</Text>
 
-        <View style={styles.tabRow}>
-          <TouchableOpacity style={[styles.tabBtn, tab === 'password' && styles.tabActive]} onPress={() => setTab('password')}>
-            <Text style={[styles.tabText, tab === 'password' && styles.tabTextActive]}>Change Password</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.tabBtn, tab === '2fa' && styles.tabActive]} onPress={() => setTab('2fa')}>
-            <Text style={[styles.tabText, tab === '2fa' && styles.tabTextActive]}>Two-Factor Auth</Text>
-          </TouchableOpacity>
+        <View style={styles.bannerBox}>
+          <Ionicons name="lock-closed-outline" size={20} color="#0d9488" style={{ marginRight: 10 }} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.bannerTitle}>Change your password</Text>
+            <Text style={styles.bannerSub}>Keep your account and financial records secure. Use a password you haven’t used before.</Text>
+          </View>
         </View>
 
-        {tab === 'password' ? (
-          <View>
-            <View style={styles.bannerBox}>
-              <Ionicons name="lock-closed-outline" size={20} color="#0d9488" style={{ marginRight: 10 }} />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.bannerTitle}>Change your password</Text>
-                <Text style={styles.bannerSub}>Keep your account and financial records secure. Use a password you haven’t used before[cite: 56].</Text>
-              </View>
-            </View>
-
-            <View style={styles.card}>
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Current Password</Text>
-                <TextInput style={styles.input} secureTextEntry value={currentPassword} onChangeText={setCurrentPassword} placeholder="********" />
-              </View>
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>New Password</Text>
-                <TextInput style={styles.input} secureTextEntry value={newPassword} onChangeText={setNewPassword} placeholder="********" />
-              </View>
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Confirm New Password</Text>
-                <TextInput style={styles.input} secureTextEntry value={confirmPassword} onChangeText={setConfirmPassword} placeholder="********" />
-              </View>
-            </View>
-
-            <TouchableOpacity style={styles.actionBtn} onPress={() => alert('Password changed successfully!')}>
-              <Text style={styles.actionBtnText}>Change Password</Text>
-            </TouchableOpacity>
+        <View style={styles.card}>
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Current Password</Text>
+            <TextInput style={styles.input} secureTextEntry autoCapitalize="none" value={currentPassword} onChangeText={setCurrentPassword} placeholder="********" />
           </View>
-        ) : (
-          <View>
-            <View style={styles.bannerBox}>
-              <Ionicons name="shield-checkmark-outline" size={20} color="#0d9488" style={{ marginRight: 10 }} />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.bannerTitle}>Enable Two-factor Authentication</Text>
-                <Text style={styles.bannerSub}>Add an extra layer of security to your account and help protect your financial records[cite: 53].</Text>
-              </View>
-            </View>
-
-            <View style={styles.card}>
-              <View style={styles.switchRow}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.actionTitle}>Enable Two-Factor Authentication</Text>
-                  <Text style={styles.actionSub}>Verify your identity when logging[cite: 53]</Text>
-                </View>
-                <Switch 
-                  value={is2FAEnabled} 
-                  onValueChange={(val) => {
-                    setIs2FAEnabled(val);
-                    if (val) router.push('../settings-2fa');
-                  }}
-                  trackColor={{ false: '#d1d5db', true: '#0b4f8c' }}
-                />
-              </View>
-              <View style={styles.divider} />
-              <TouchableOpacity style={styles.chevronRow} onPress={() => router.push('../settings-2fa')}>
-                <View>
-                  <Text style={styles.actionTitle}>Verification Method</Text>
-                  <Text style={styles.actionSub}>Email 2FA verification[cite: 53]</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={18} color="#9ca3af" />
-              </TouchableOpacity>
-            </View>
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>New Password</Text>
+            <TextInput style={styles.input} secureTextEntry autoCapitalize="none" value={newPassword} onChangeText={setNewPassword} placeholder="********" />
           </View>
-        )}
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Confirm New Password</Text>
+            <TextInput style={styles.input} secureTextEntry autoCapitalize="none" value={confirmPassword} onChangeText={setConfirmPassword} placeholder="********" />
+          </View>
+        </View>
+
+        {error && <Text style={styles.errorText}>{error}</Text>}
+        {done && <Text style={styles.okText}>Password changed successfully.</Text>}
+
+        <TouchableOpacity style={[styles.actionBtn, loading && { opacity: 0.6 }]} onPress={handleChange} disabled={loading}>
+          <Text style={styles.actionBtnText}>{loading ? 'Changing...' : 'Change Password'}</Text>
+        </TouchableOpacity>
       </ScrollView>
       <BottomNav />
     </SafeAreaView>
@@ -125,4 +115,6 @@ const styles = StyleSheet.create({
   actionTitle: { fontSize: 14, fontWeight: '700', color: '#1f2937', marginBottom: 2 },
   actionSub: { fontSize: 12, color: '#6b7280' },
   divider: { height: 1, backgroundColor: '#f3f4f6', marginVertical: 10 },
+  errorText: { color: '#dc2626', fontSize: 13, textAlign: 'center', marginBottom: 12 },
+  okText: { color: '#0d9488', fontSize: 13, textAlign: 'center', marginBottom: 12 },
 });

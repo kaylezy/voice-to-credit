@@ -1,24 +1,89 @@
-import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, Modal } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { StyleSheet, Text, View, TouchableOpacity, Modal, TextInput, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { AudioModule, RecordingPresets, setAudioModeAsync, useAudioRecorder } from 'expo-audio';
 import BottomNav from './BottomNav';
 import { SafeAreaView } from "react-native-safe-area-context";
+import { transcribeAudio, useTransactionDraft } from '@/features/transactions';
+
+const MAX_SECONDS = 120;
 
 export default function RecordActiveScreen() {
   const router = useRouter();
-  const [seconds, setSeconds] = useState<number>(8);
-  const [showTranscriptModal, setShowTranscriptModal] = useState<boolean>(false);
+  const { update } = useTransactionDraft();
+  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+
+  const [seconds, setSeconds] = useState(0);
+  const [recording, setRecording] = useState(false);
+  const [phase, setPhase] = useState<'recording' | 'transcribing' | 'ready' | 'error'>('recording');
+  const [transcript, setTranscript] = useState('');
+  const [editing, setEditing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const started = useRef(false);
+
+  const startRecording = async () => {
+    setError(null);
+    setSeconds(0);
+    setEditing(false);
+    setPhase('recording');
+    try {
+      const status = await AudioModule.requestRecordingPermissionsAsync();
+      if (!status.granted) {
+        setError('Microphone access is needed to record. Go back and enter the transaction manually.');
+        return;
+      }
+      await setAudioModeAsync({ playsInSilentMode: true, allowsRecording: true });
+      await recorder.prepareToRecordAsync();
+      recorder.record();
+      setRecording(true);
+    } catch {
+      setError("Couldn't start the recording. Please go back and try again.");
+    }
+  };
 
   useEffect(() => {
-    const timer = setInterval(() => {
-      setSeconds((prev) => prev + 1);
-    }, 1000);
-    return () => clearInterval(timer);
+    if (started.current) return;
+    started.current = true;
+    startRecording();
   }, []);
 
-  const handleStopRecording = () => {
-    setShowTranscriptModal(true);
+  useEffect(() => {
+    if (!recording) return;
+    const t = setInterval(() => setSeconds((s) => s + 1), 1000);
+    return () => clearInterval(t);
+  }, [recording]);
+
+  const handleStop = async () => {
+    if (!recording) return;
+    setRecording(false);
+    setPhase('transcribing');
+    try {
+      await recorder.stop();
+      const uri = recorder.uri;
+      if (!uri) throw new Error('no recording');
+      const result = await transcribeAudio(uri);
+      if (!result.ok) {
+        setError(result.message);
+        setPhase('error');
+        return;
+      }
+      setTranscript(result.transcript);
+      setPhase('ready');
+    } catch {
+      setError("Couldn't process the recording. Please try again.");
+      setPhase('error');
+    }
+  };
+
+  // Stop automatically at the time limit
+  useEffect(() => {
+    if (recording && seconds >= MAX_SECONDS) handleStop();
+  }, [seconds, recording]);
+
+  const handleContinue = () => {
+    update({ transcript: transcript.trim(), inputMethod: 'voice' });
+    router.push('/record-processing');
   };
 
   const formatTime = (totalSeconds: number) => {
@@ -41,8 +106,14 @@ export default function RecordActiveScreen() {
           </View>
         </View>
 
-        <Text style={styles.listeningTitle}>Listening...</Text>
-        <Text style={styles.listeningSubtitle}>Tap stop when you are done</Text>
+        <Text style={styles.listeningTitle}>{recording ? 'Listening...' : 'Recording stopped'}</Text>
+        <Text style={styles.listeningSubtitle}>
+          {recording ? 'Tap stop when you are done' : 'One moment'}
+        </Text>
+
+        {error && phase === 'recording' && (
+          <Text style={{ color: '#dc2626', fontSize: 13, textAlign: 'center', marginBottom: 12 }}>{error}</Text>
+        )}
 
         <View style={styles.waveRow}>
           {[16, 28, 40, 22, 36, 48, 20, 32, 44, 24, 38, 18, 30].map((h, i) => (
@@ -52,49 +123,77 @@ export default function RecordActiveScreen() {
 
         <Text style={styles.timerText}>{formatTime(seconds)}</Text>
 
-        <TouchableOpacity style={styles.stopButton} onPress={handleStopRecording}>
+        <TouchableOpacity
+          style={[styles.stopButton, !recording && { opacity: 0.5 }]}
+          onPress={handleStop}
+          disabled={!recording}
+        >
           <Text style={styles.stopButtonText}>Stop recording</Text>
         </TouchableOpacity>
       </View>
 
-      {/* Speech-to-Text Popup Modal */}
-      <Modal visible={showTranscriptModal} transparent animationType="fade">
+      {/* Speech-to-text popup */}
+      <Modal visible={phase !== 'recording'} transparent animationType="fade">
         <View style={styles.modalBackdrop}>
           <View style={styles.modalCard}>
-            <TouchableOpacity style={styles.closeButton} onPress={() => setShowTranscriptModal(false)}>
-              <Ionicons name="close" size={22} color="#0b4f8c" />
-            </TouchableOpacity>
-
             <Text style={styles.transcriptTitle}>Speech-to-text</Text>
 
-            <View style={styles.transcriptCard}>
-              <Text style={styles.quoteMark}>“</Text>
-              <Text style={styles.transcriptText}>
-                I sold 20 yards of Ankara for ₦80,000.
-              </Text>
-              <View style={styles.readyBadge}>
-                <Ionicons name="checkmark-circle" size={18} color="#10b981" />
-                <Text style={styles.readyText}>Transcript ready</Text>
+            {phase === 'transcribing' && (
+              <View style={{ alignItems: 'center', paddingVertical: 24 }}>
+                <ActivityIndicator size="large" color="#0b4f8c" />
+                <Text style={{ marginTop: 12, color: '#4b5563' }}>Transcribing...</Text>
               </View>
-            </View>
+            )}
 
-            <TouchableOpacity onPress={() => alert('Edit Transcript option')}>
-              <Text style={styles.editText}>Edit Transcript</Text>
-            </TouchableOpacity>
+            {phase === 'ready' && (
+              <>
+                <View style={styles.transcriptCard}>
+                  <Text style={styles.quoteMark}>“</Text>
+                  {editing ? (
+                    <TextInput
+                      style={styles.transcriptText}
+                      value={transcript}
+                      onChangeText={setTranscript}
+                      multiline
+                      maxLength={500}
+                      autoFocus
+                    />
+                  ) : (
+                    <Text style={styles.transcriptText}>{transcript}</Text>
+                  )}
+                  <View style={styles.readyBadge}>
+                    <Ionicons name="checkmark-circle" size={18} color="#10b981" />
+                    <Text style={styles.readyText}>Transcript ready</Text>
+                  </View>
+                </View>
 
-            <TouchableOpacity 
-              style={styles.confirmButton}
-              onPress={() => alert('Confirm & navigate to structured extraction screen!')}
-            >
-              <Text style={styles.confirmButtonText}>Looks right – Continue</Text>
-            </TouchableOpacity>
+                <TouchableOpacity onPress={() => setEditing(!editing)}>
+                  <Text style={styles.editText}>{editing ? 'Done editing' : 'Edit Transcript'}</Text>
+                </TouchableOpacity>
 
-            <TouchableOpacity 
-              style={styles.recordAgainButton}
-              onPress={() => setShowTranscriptModal(false)}
-            >
-              <Text style={styles.recordAgainText}>Record Again</Text>
-            </TouchableOpacity>
+                <TouchableOpacity style={styles.confirmButton} onPress={handleContinue}>
+                  <Text style={styles.confirmButtonText}>Looks right – Continue</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity style={styles.recordAgainButton} onPress={startRecording}>
+                  <Text style={styles.recordAgainText}>Record Again</Text>
+                </TouchableOpacity>
+              </>
+            )}
+
+            {phase === 'error' && (
+              <>
+                <Text style={{ color: '#dc2626', fontSize: 14, textAlign: 'center', marginBottom: 20 }}>
+                  {error}
+                </Text>
+                <TouchableOpacity style={styles.confirmButton} onPress={startRecording}>
+                  <Text style={styles.confirmButtonText}>Try again</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.recordAgainButton} onPress={() => router.replace('/record-manually')}>
+                  <Text style={styles.recordAgainText}>Enter manually</Text>
+                </TouchableOpacity>
+              </>
+            )}
           </View>
         </View>
       </Modal>

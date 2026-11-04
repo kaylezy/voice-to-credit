@@ -1,153 +1,160 @@
-import React from 'react';
-import { StyleSheet, Text, View, Image, TouchableOpacity, ScrollView } from 'react-native';
-import { useRouter } from 'expo-router';
+import React, { useCallback, useState } from 'react';
+import { StyleSheet, Text, View, ScrollView, RefreshControl, ActivityIndicator } from 'react-native';
+import { useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import BottomNav from './BottomNav';
 import { SafeAreaView } from "react-native-safe-area-context";
+import { apiFetch } from '@/lib/api';
+import { formatNaira } from '@/features/transactions';
+
+type Profile = {
+  total_recorded_sales: number;
+  total_recorded_purchases: number;
+  total_recorded_expenses: number;
+  estimated_gross_profit: number;
+  average_sale_value: number;
+  outstanding_receivables: number;
+  outstanding_payables: number;
+  transaction_count: number;
+  active_recording_days: number;
+};
+
+type Business = { name: string; category: string | null; location: string | null };
 
 export default function FinanceScreen() {
-  const router = useRouter();
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [business, setBusiness] = useState<Business | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    const [p, b] = await Promise.all([
+      apiFetch<Profile>('/api/financial-profile'),
+      apiFetch<Business[]>('/api/businesses'),
+    ]);
+    if (p.ok) {
+      setProfile(p.data);
+      setError(null);
+    } else {
+      setError(p.error === 'network_error' ? "Can't reach the server. Pull down to try again." : 'Could not load your financial profile.');
+    }
+    if (b.ok && b.data[0]) setBusiness(b.data[0]);
+    setLoading(false);
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      load();
+    }, [load])
+  );
+
+  const refresh = async () => {
+    setRefreshing(true);
+    await load();
+    setRefreshing(false);
+  };
+
+  const initials = (business?.name ?? '')
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0].toUpperCase())
+    .join('') || 'TP';
+  const sub = [business?.category, business?.location].filter(Boolean).join(' – ');
+
+  const net = profile ? profile.outstanding_receivables - profile.outstanding_payables : 0;
+  const netText =
+    net > 0 ? `You are owed ${formatNaira(net)} more than you owe`
+    : net < 0 ? `You owe ${formatNaira(-net)} more than you are owed`
+    : 'What you owe and what you are owed are equal';
+
+  const Metric = ({ label, value, color, bg, icon }: { label: string; value: number; color: string; bg: string; icon: React.ComponentProps<typeof Ionicons>['name'] }) => (
+    <View style={[styles.metricCard, { borderTopColor: color }]}>
+      <View style={styles.metricCardHeader}>
+        <View style={[styles.metricIconBox, { backgroundColor: bg }]}>
+          <Ionicons name={icon} size={16} color={color} />
+        </View>
+        <Text style={styles.metricLabel}>{label}</Text>
+      </View>
+      <Text style={styles.metricValue}>{formatNaira(value)}</Text>
+    </View>
+  );
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
-        {/* Top Header Row */}
+      <ScrollView
+        contentContainerStyle={styles.scrollContainer}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
+      >
         <View style={styles.headerRow}>
           <Text style={styles.headerTitle}>Financial Profile</Text>
-          <View style={styles.headerActions}>
-            <TouchableOpacity style={styles.iconActionBtn} onPress={() => router.push('../export-financial')}>
-              <Ionicons name="download-outline" size={20} color="#0b4f8c" />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.iconActionBtn} onPress={() => router.push('../export-share')}>
-              <Ionicons name="open-outline" size={20} color="#0b4f8c" />
-            </TouchableOpacity>
-          </View>
         </View>
 
-        {/* Business Overview Card */}
-        <View style={styles.profileCard}>
-          <View style={styles.profileTopRow}>
-            <View style={styles.avatarBox}>
-              <Text style={styles.avatarText}>AP</Text>
-            </View>
-            <View style={{ flex: 1, marginLeft: 14 }}>
-              <Text style={styles.businessName}>Amina Fabrics</Text>
-              <Text style={styles.businessSub}>Retail & provisions – Yaba, Lagos</Text>
-            </View>
-          </View>
-          <View style={styles.profileInfoRow}>
-            <Ionicons name="calendar-outline" size={14} color="#6b7280" style={{ marginRight: 6 }} />
-            <Text style={styles.profileInfoText}>Trading since March 2021</Text>
-          </View>
-          <View style={styles.profileInfoRow}>
-            <Ionicons name="document-text-outline" size={14} color="#6b7280" style={{ marginRight: 6 }} />
-            <Text style={styles.profileInfoText}>486 transactions in total</Text>
-          </View>
+        {loading && <ActivityIndicator size="large" color="#0b4f8c" style={{ marginTop: 40 }} />}
+        {!loading && error && !profile && <Text style={styles.errorText}>{error}</Text>}
 
-          <TouchableOpacity style={styles.periodDropdown}>
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <Ionicons name="calendar" size={16} color="#0b4f8c" style={{ marginRight: 8 }} />
-              <Text style={styles.periodDropdownText}>Last 6 months</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={16} color="#0b4f8c" />
-          </TouchableOpacity>
-        </View>
-
-        {/* Financial Metrics Section */}
-        <Text style={styles.sectionHeader}>Financial Metrics</Text>
-        <Text style={styles.sectionSub}>Business Performance</Text>
-
-        <View style={styles.metricsBox}>
-          <View style={styles.metricsGridRow}>
-            <View style={[styles.metricCard, { borderTopColor: '#0b4f8c' }]}>
-              <View style={styles.metricCardHeader}>
-                <View style={[styles.metricIconBox, { backgroundColor: '#e0f2fe' }]}>
-                  <Ionicons name="bar-chart-outline" size={16} color="#0b4f8c" />
+        {profile && (
+          <>
+            <View style={styles.profileCard}>
+              <View style={styles.profileTopRow}>
+                <View style={styles.avatarBox}>
+                  <Text style={styles.avatarText}>{initials}</Text>
                 </View>
-                <Text style={styles.metricLabel}>Sales</Text>
-              </View>
-              <Text style={styles.metricValue}>₦2, 840, 000</Text>
-              <Text style={styles.metricChangePos}>+12.4% in 7 Days</Text>
-            </View>
-
-            <View style={[styles.metricCard, { borderTopColor: '#ef4444' }]}>
-              <View style={styles.metricCardHeader}>
-                <View style={[styles.metricIconBox, { backgroundColor: '#fee2e2' }]}>
-                  <Ionicons name="bag-handle-outline" size={16} color="#ef4444" />
+                <View style={{ flex: 1, marginLeft: 14 }}>
+                  <Text style={styles.businessName}>{business?.name ?? 'Your business'}</Text>
+                  {!!sub && <Text style={styles.businessSub}>{sub}</Text>}
                 </View>
-                <Text style={styles.metricLabel}>Purchases</Text>
               </View>
-              <Text style={styles.metricValue}>₦1, 520, 000</Text>
-              <Text style={styles.metricChangeNeg}>-1.5% in 7 Days</Text>
-            </View>
-          </View>
-
-          <View style={styles.metricsGridRow}>
-            <View style={[styles.metricCard, { borderTopColor: '#f59e0b' }]}>
-              <View style={styles.metricCardHeader}>
-                <View style={[styles.metricIconBox, { backgroundColor: '#fef3c7' }]}>
-                  <Ionicons name="wallet-outline" size={16} color="#f59e0b" />
-                </View>
-                <Text style={styles.metricLabel}>Expenses</Text>
+              <View style={styles.profileInfoRow}>
+                <Ionicons name="calendar-outline" size={14} color="#6b7280" style={{ marginRight: 6 }} />
+                <Text style={styles.profileInfoText}>{profile.active_recording_days} active recording days</Text>
               </View>
-              <Text style={styles.metricValue}>₦386, 500</Text>
-              <Text style={styles.metricChangeOrange}>+2.4% in 7 Days</Text>
-            </View>
-
-            <View style={[styles.metricCard, { borderTopColor: '#10b981' }]}>
-              <View style={styles.metricCardHeader}>
-                <View style={[styles.metricIconBox, { backgroundColor: '#d1fae5' }]}>
-                  <Ionicons name="trending-up-outline" size={16} color="#10b981" />
-                </View>
-                <Text style={styles.metricLabel}>Est. gross profit</Text>
+              <View style={styles.profileInfoRow}>
+                <Ionicons name="document-text-outline" size={14} color="#6b7280" style={{ marginRight: 6 }} />
+                <Text style={styles.profileInfoText}>{profile.transaction_count} transactions in total</Text>
               </View>
-              <Text style={styles.metricValue}>₦933, 500</Text>
-              <Text style={styles.metricChangePos}>+5.9% in 7 Days</Text>
+              <View style={styles.profileInfoRow}>
+                <Ionicons name="time-outline" size={14} color="#6b7280" style={{ marginRight: 6 }} />
+                <Text style={styles.profileInfoText}>Covers your entire recorded period</Text>
+              </View>
             </View>
-          </View>
-        </View>
 
-        {/* Business Activity Trend */}
-        <Text style={styles.sectionHeader}>Business Activity</Text>
-        <Text style={styles.sectionSub}>Sales and Expenses</Text>
-        
-        <View style={styles.chartCard}>
-          <View style={styles.legendRow}>
-            <View style={styles.legendItem}>
-              <View style={[styles.legendDot, { backgroundColor: '#06b6d4' }]} />
-              <Text style={styles.legendText}>Sales</Text>
+            <Text style={styles.sectionHeader}>Financial Metrics</Text>
+            <Text style={styles.sectionSub}>Business Performance</Text>
+
+            <View style={styles.metricsBox}>
+              <View style={styles.metricsGridRow}>
+                <Metric label="Sales" value={profile.total_recorded_sales} color="#0b4f8c" bg="#e0f2fe" icon="bar-chart-outline" />
+                <Metric label="Purchases" value={profile.total_recorded_purchases} color="#ef4444" bg="#fee2e2" icon="bag-handle-outline" />
+              </View>
+              <View style={styles.metricsGridRow}>
+                <Metric label="Expenses" value={profile.total_recorded_expenses} color="#f59e0b" bg="#fef3c7" icon="wallet-outline" />
+                <Metric label="Est. gross profit" value={profile.estimated_gross_profit} color="#10b981" bg="#d1fae5" icon="trending-up-outline" />
+              </View>
             </View>
-            <View style={styles.legendItem}>
-              <View style={[styles.legendDot, { backgroundColor: '#f59e0b' }]} />
-              <Text style={styles.legendText}>Expenses</Text>
+
+            <Text style={styles.sectionHeader}>Open Balances</Text>
+            <Text style={styles.sectionSub}>Receivables and Payables (still unpaid)</Text>
+
+            <View style={styles.balancesCard}>
+              <View style={styles.balanceRow}>
+                <Text style={styles.balanceLabel}>Receivables</Text>
+                <Text style={styles.balanceValue}>{formatNaira(profile.outstanding_receivables)}</Text>
+              </View>
+              <View style={styles.divider} />
+              <View style={styles.balanceRow}>
+                <Text style={styles.balanceLabel}>Payables</Text>
+                <Text style={styles.balanceValue}>{formatNaira(profile.outstanding_payables)}</Text>
+              </View>
+              <View style={styles.netInfoBox}>
+                <Ionicons name="information-circle-outline" size={16} color="#0f766e" style={{ marginRight: 6 }} />
+                <Text style={styles.netInfoText}>{netText}</Text>
+              </View>
             </View>
-          </View>
-          <Image 
-            source={{ uri: '#' }} // Sales vs Expenses chart image reference
-            style={styles.chartPlaceholder}
-            resizeMode="contain"
-          />
-        </View>
-
-        {/* Open Balances */}
-        <Text style={styles.sectionHeader}>Open Balances</Text>
-        <Text style={styles.sectionSub}>Receivables and Payables</Text>
-
-        <View style={styles.balancesCard}>
-          <View style={styles.balanceRow}>
-            <Text style={styles.balanceLabel}>Receivables</Text>
-            <Text style={styles.balanceValue}>₦245, 000</Text>
-          </View>
-          <View style={styles.divider} />
-          <View style={styles.balanceRow}>
-            <Text style={styles.balanceLabel}>Payables</Text>
-            <Text style={styles.balanceValue}>₦108, 500</Text>
-          </View>
-          <View style={styles.netInfoBox}>
-            <Ionicons name="information-circle-outline" size={16} color="#0f766e" style={{ marginRight: 6 }} />
-            <Text style={styles.netInfoText}>You are owed ₦136,500 more than you owe</Text>
-          </View>
-        </View>
+          </>
+        )}
       </ScrollView>
 
       <BottomNav />
@@ -197,4 +204,5 @@ const styles = StyleSheet.create({
   divider: { height: 1, backgroundColor: '#f3f4f6' },
   netInfoBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#ccfbf1', borderRadius: 12, padding: 12, marginTop: 12 },
   netInfoText: { fontSize: 12, fontWeight: '700', color: '#0f766e' },
+  errorText: { color: '#dc2626', fontSize: 13, textAlign: 'center', marginVertical: 20 },
 });

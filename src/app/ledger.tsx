@@ -1,37 +1,84 @@
-import React, { useState } from 'react';
-import { StyleSheet, Text, View, TextInput, TouchableOpacity, ScrollView, Modal } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import {
+  StyleSheet, Text, View, TextInput, TouchableOpacity, ScrollView, Modal, RefreshControl, ActivityIndicator,
+} from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import BottomNav from './BottomNav';
 import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  formatClock, formatDay, formatNaira, lagosDate, statusLabel, typeLabel, useTransactions, type TxType,
+} from '@/features/transactions';
 
-const transactions = [
-  { id: '1', title: 'Ankara fabric', type: 'Sale', detail: '20 yards', time: 'Today · 05:32 PM', amount: '₦80,000', status: 'Paid', color: '#10b981', icon: 'checkmark-circle-outline' },
-  { id: '2', title: 'Shirts', type: 'Purchase', detail: '20 pieces', time: 'Jun 9, 2026 · 03:12 PM', amount: '₦120,000', status: 'Partially paid', color: '#f59e0b', icon: 'arrow-up-circle-outline' },
-  { id: '3', title: 'Transport to the market', type: 'Expense', detail: 'Transport', time: 'Jun 8, 2026 · 09:12 PM', amount: '₦5,000', status: 'Paid', color: '#0b4f8c', icon: 'wallet-outline' },
-  { id: '4', title: 'Customer credit', type: 'Receivable', detail: 'Credit', time: 'Jun 7, 2026 · 01:12 PM', amount: '₦50,000', status: 'Partially paid', color: '#06b6d4', icon: 'time-outline' },
-  { id: '5', title: 'Stocks (bags)', type: 'Purchase', detail: '10 bags', time: 'Jun 6, 2026 · 03:12 PM', amount: '₦74,450', status: 'Unpaid', color: '#ef4444', icon: 'bag-handle-outline' },
+type IconName = React.ComponentProps<typeof Ionicons>['name'];
+
+const TYPE_STYLE: Record<TxType, { color: string; icon: IconName }> = {
+  sale: { color: '#10b981', icon: 'checkmark-circle-outline' },
+  purchase: { color: '#f59e0b', icon: 'arrow-up-circle-outline' },
+  expense: { color: '#0b4f8c', icon: 'wallet-outline' },
+  receivable: { color: '#06b6d4', icon: 'time-outline' },
+  payable: { color: '#ef4444', icon: 'bag-handle-outline' },
+};
+
+const TYPE_FILTERS: { label: string; value: TxType | 'all' }[] = [
+  { label: 'All', value: 'all' },
+  { label: 'Sales', value: 'sale' },
+  { label: 'Purchases', value: 'purchase' },
+  { label: 'Expenses', value: 'expense' },
+  { label: 'Payables', value: 'payable' },
+  { label: 'Receivables', value: 'receivable' },
 ];
+
+const DATE_FILTERS = ['All time', 'Today', 'This week', 'This month'] as const;
+type DateFilter = (typeof DATE_FILTERS)[number];
 
 export default function LedgerScreen() {
   const router = useRouter();
+  const { items, loading, refreshing, error, refresh } = useTransactions();
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilterModal, setShowFilterModal] = useState(false);
-  const [selectedTypeFilter, setSelectedTypeFilter] = useState('All');
-  const [selectedDateFilter, setSelectedDateFilter] = useState('Today');
+  const [typeFilter, setTypeFilter] = useState<TxType | 'all'>('all');
+  const [dateFilter, setDateFilter] = useState<DateFilter>('All time');
+
+  const visible = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    const today = lagosDate();
+    const weekStart = lagosDate(-6);
+    const monthPrefix = today.slice(0, 7);
+
+    return items.filter((t) => {
+      if (typeFilter !== 'all' && t.type !== typeFilter) return false;
+
+      const d = t.transaction_date.slice(0, 10);
+      if (dateFilter === 'Today' && d !== today) return false;
+      if (dateFilter === 'This week' && d < weekStart) return false;
+      if (dateFilter === 'This month' && !d.startsWith(monthPrefix)) return false;
+
+      if (q) {
+        const hay = [t.product_name, t.description, t.notes, t.type].filter(Boolean).join(' ').toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [items, searchQuery, typeFilter, dateFilter]);
+
+  const resetFilters = () => {
+    setTypeFilter('all');
+    setDateFilter('All time');
+    setShowFilterModal(false);
+  };
 
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.headerArea}>
         <Text style={styles.headerTitle}>Ledger</Text>
 
-        {/* Search & Filter Bar */}
         <View style={styles.searchRow}>
           <View style={styles.searchBox}>
             <Ionicons name="search-outline" size={18} color="#9ca3af" style={{ marginRight: 8 }} />
-            <TextInput 
-              style={styles.searchInput} 
-              placeholder="Search transactions" 
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search transactions"
               placeholderTextColor="#9ca3af"
               value={searchQuery}
               onChangeText={setSearchQuery}
@@ -43,36 +90,59 @@ export default function LedgerScreen() {
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContainer}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
+      >
         <Text style={styles.sectionTitle}>Recent Transactions</Text>
 
-        {transactions.map((item) => (
-          <TouchableOpacity 
-            key={item.id} 
-            style={styles.transactionCard}
-            onPress={() => router.push('../transaction-details')}
-          >
-            <View style={styles.transactionLeft}>
-              <View style={[styles.iconBox, { backgroundColor: item.color + '20' }]}>
-                <Ionicons name={item.icon as any} size={20} color={item.color} />
-              </View>
-              <View>
-                <Text style={styles.txTitle}>{item.title}</Text>
-                <Text style={styles.txSub}>{item.type} · {item.detail}</Text>
-                <Text style={styles.txTime}>{item.time}</Text>
-              </View>
-            </View>
+        {loading && <ActivityIndicator size="large" color="#0b4f8c" style={{ marginTop: 30 }} />}
 
-            <View style={styles.transactionRight}>
-              <Text style={styles.txAmount}>{item.amount}</Text>
-              <View style={[styles.statusBadge, item.status === 'Paid' ? styles.badgePaid : styles.badgeUnpaid]}>
-                <Text style={[styles.statusText, item.status === 'Paid' ? styles.textPaid : styles.textUnpaid]}>
-                  {item.status}
-                </Text>
+        {!loading && error && items.length === 0 && <Text style={styles.errorText}>{error}</Text>}
+
+        {!loading && !error && visible.length === 0 && (
+          <Text style={styles.emptyText}>
+            {items.length === 0 ? 'No transactions yet. Record your first one!' : 'No transactions match your search or filters.'}
+          </Text>
+        )}
+
+        {visible.map((item) => {
+          const style = TYPE_STYLE[item.type];
+          const detail = `${item.quantity ?? ''} ${item.unit ?? ''}`.trim() || '—';
+          const paid = item.payment_status === 'paid';
+          return (
+            <TouchableOpacity
+              key={item.id}
+              style={styles.transactionCard}
+              onPress={() => router.push({ pathname: '/transaction-details', params: { id: item.id } })}
+            >
+              <View style={styles.transactionLeft}>
+                <View style={[styles.iconBox, { backgroundColor: style.color + '20' }]}>
+                  <Ionicons name={style.icon} size={20} color={style.color} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.txTitle} numberOfLines={1}>
+                    {item.product_name || item.description || typeLabel(item.type)}
+                  </Text>
+                  <Text style={styles.txSub}>{typeLabel(item.type)} · {detail}</Text>
+                  <Text style={styles.txTime}>
+                    {formatDay(item.transaction_date)} · {formatClock(item.created_at)}
+                  </Text>
+                </View>
               </View>
-            </View>
-          </TouchableOpacity>
-        ))}
+
+              <View style={styles.transactionRight}>
+                <Text style={styles.txAmount}>{formatNaira(Number(item.amount))}</Text>
+                <View style={[styles.statusBadge, paid ? styles.badgePaid : styles.badgeUnpaid]}>
+                  <Text style={[styles.statusText, paid ? styles.textPaid : styles.textUnpaid]}>
+                    {statusLabel(item.payment_status)}
+                  </Text>
+                </View>
+              </View>
+            </TouchableOpacity>
+          );
+        })}
       </ScrollView>
 
       {/* Filter Modal */}
@@ -89,32 +159,32 @@ export default function LedgerScreen() {
 
             <Text style={styles.filterSectionLabel}>Transaction Type</Text>
             <View style={styles.filterChipRow}>
-              {['All', 'Sales', 'Purchases', 'Expenses', 'Payables', 'Receivables'].map((chip) => (
-                <TouchableOpacity 
-                  key={chip} 
-                  style={[styles.chip, selectedTypeFilter === chip && styles.chipActive]}
-                  onPress={() => setSelectedTypeFilter(chip)}
+              {TYPE_FILTERS.map((chip) => (
+                <TouchableOpacity
+                  key={chip.label}
+                  style={[styles.chip, typeFilter === chip.value && styles.chipActive]}
+                  onPress={() => setTypeFilter(chip.value)}
                 >
-                  <Text style={[styles.chipText, selectedTypeFilter === chip && styles.chipTextActive]}>{chip}</Text>
+                  <Text style={[styles.chipText, typeFilter === chip.value && styles.chipTextActive]}>{chip.label}</Text>
                 </TouchableOpacity>
               ))}
             </View>
 
             <Text style={styles.filterSectionLabel}>Date Range</Text>
             <View style={styles.filterChipRow}>
-              {['Today', 'This week', 'This month', 'Custom range'].map((chip) => (
-                <TouchableOpacity 
-                  key={chip} 
-                  style={[styles.chip, selectedDateFilter === chip && styles.chipActive]}
-                  onPress={() => setSelectedDateFilter(chip)}
+              {DATE_FILTERS.map((chip) => (
+                <TouchableOpacity
+                  key={chip}
+                  style={[styles.chip, dateFilter === chip && styles.chipActive]}
+                  onPress={() => setDateFilter(chip)}
                 >
-                  <Text style={[styles.chipText, selectedDateFilter === chip && styles.chipTextActive]}>{chip}</Text>
+                  <Text style={[styles.chipText, dateFilter === chip && styles.chipTextActive]}>{chip}</Text>
                 </TouchableOpacity>
               ))}
             </View>
 
             <View style={styles.filterActionRow}>
-              <TouchableOpacity style={styles.resetButton} onPress={() => setShowFilterModal(false)}>
+              <TouchableOpacity style={styles.resetButton} onPress={resetFilters}>
                 <Text style={styles.resetButtonText}>Reset</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.applyButton} onPress={() => setShowFilterModal(false)}>
@@ -169,4 +239,6 @@ const styles = StyleSheet.create({
   resetButtonText: { color: '#ffffff', fontSize: 15, fontWeight: '700' },
   applyButton: { flex: 1, height: 48, borderRadius: 24, backgroundColor: '#0b4f8c', justifyContent: 'center', alignItems: 'center' },
   applyButtonText: { color: '#ffffff', fontSize: 15, fontWeight: '700' },
+    errorText: { color: '#dc2626', fontSize: 13, textAlign: 'center', marginTop: 30 },
+  emptyText: { color: '#6b7280', fontSize: 13, textAlign: 'center', marginTop: 30 },
 });

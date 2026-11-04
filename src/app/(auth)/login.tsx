@@ -19,7 +19,7 @@ export default function LoginScreen() {
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-    const { login, loading, error } = useLogin();
+  const { login, loading, error } = useLogin();
   const [localError, setLocalError] = useState<string | null>(null);
 
   const handleLogin = async () => {
@@ -29,7 +29,7 @@ export default function LoginScreen() {
       return;
     }
     const result = await login(identifier, password);
-    if (result === "ok") router.replace("/"); // change "/" to your home screen route
+    
     if (result === "needs_verification") {
       router.push({ pathname: "/(auth)/verify", params: { email: identifier.trim() } });
     }

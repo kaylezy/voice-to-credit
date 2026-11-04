@@ -1,45 +1,69 @@
-import React, { useState } from 'react';
-import { StyleSheet, Text, View, Image, TouchableOpacity, ScrollView, Modal } from 'react-native';
-import { useRouter } from 'expo-router';
+import React, { useCallback, useState } from 'react';
+import { StyleSheet, Text, View, TouchableOpacity, ScrollView, Modal } from 'react-native';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import BottomNav from './BottomNav';
 import { SafeAreaView } from "react-native-safe-area-context";
+import { supabase } from '@/lib/supabase';
+import { apiFetch } from '@/lib/api';
 
 export default function ProfileScreen() {
   const router = useRouter();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [showDeletedSuccess, setShowDeletedSuccess] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
+  const [email, setEmail] = useState('');
+  const [memberSince, setMemberSince] = useState('');
+  const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
+
+  useFocusEffect(
+    useCallback(() => {
+      (async () => {
+        const { data } = await supabase.auth.getUser();
+        setEmail(data.user?.email ?? '');
+        if (data.user?.created_at) {
+          setMemberSince(new Date(data.user.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }));
+        }
+        const res = await apiFetch<any>('/api/profile');
+        if (res.ok && res.data) {
+          setName(res.data.full_name ?? res.data.name ?? '');
+          setPhone(res.data.phone ?? res.data.phone_number ?? '');
+        }
+      })();
+    }, [])
+  );
+
+  const handleLogout = async () => {
+    setLoggingOut(true);
+    await supabase.auth.signOut();
+    setShowLogoutModal(false);
+    setLoggingOut(false);
+    router.replace('/');
+  };
 
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
-        {/* Header */}
         <View style={styles.headerRow}>
           <Text style={styles.headerTitle}>Profile & Account</Text>
-          <TouchableOpacity style={styles.gearBtn} onPress={() => router.push('../profile-security')}>
+          <TouchableOpacity style={styles.gearBtn} onPress={() => router.push('/settings')}>
             <Ionicons name="settings-outline" size={20} color="#ffffff" />
           </TouchableOpacity>
         </View>
 
-        {/* Account Information Card */}
         <Text style={styles.sectionHeader}>Account Information</Text>
         <View style={styles.card}>
           <View style={styles.userTopRow}>
-            <Image 
-              source={{ uri: '#' }} // Profile avatar placeholder image
-              style={styles.avatar} 
-            />
+            <View style={[styles.avatar, { justifyContent: 'center', alignItems: 'center' }]}>
+              <Ionicons name="person" size={26} color="#9ca3af" />
+            </View>
             <View style={{ flex: 1, marginLeft: 14 }}>
-              <Text style={styles.userName}>Aminu Yusuf</Text>
+              <Text style={styles.userName}>{name || 'Your account'}</Text>
               <Text style={styles.userRole}>Business owner</Text>
               <View style={styles.verifiedBadge}>
                 <Text style={styles.verifiedText}>Verified email</Text>
               </View>
             </View>
-            <TouchableOpacity style={styles.editProfileBtn} onPress={() => router.push('../profile-edit')}>
-              <Text style={styles.editProfileText}>Edit Profile</Text>
-            </TouchableOpacity>
           </View>
 
           <View style={styles.divider} />
@@ -48,7 +72,7 @@ export default function ProfileScreen() {
             <Ionicons name="mail-outline" size={18} color="#0b4f8c" style={{ marginRight: 12 }} />
             <View>
               <Text style={styles.infoLabel}>Email address</Text>
-              <Text style={styles.infoValue}>amina-yusuf123@gmail.com</Text>
+              <Text style={styles.infoValue}>{email || '—'}</Text>
             </View>
           </View>
 
@@ -58,29 +82,7 @@ export default function ProfileScreen() {
             <Ionicons name="call-outline" size={18} color="#0b4f8c" style={{ marginRight: 12 }} />
             <View>
               <Text style={styles.infoLabel}>Phone number</Text>
-              <Text style={styles.infoValue}>+234 801 234 5678</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Personal Information Card */}
-        <Text style={styles.sectionHeader}>Personal Information</Text>
-        <View style={styles.card}>
-          <View style={styles.infoRow}>
-            <Ionicons name="person-outline" size={18} color="#0b4f8c" style={{ marginRight: 12 }} />
-            <View>
-              <Text style={styles.infoLabel}>Gender</Text>
-              <Text style={styles.infoValue}>Female</Text>
-            </View>
-          </View>
-
-          <View style={styles.divider} />
-
-          <View style={styles.infoRow}>
-            <Ionicons name="calendar-outline" size={18} color="#0b4f8c" style={{ marginRight: 12 }} />
-            <View>
-              <Text style={styles.infoLabel}>Date of birth</Text>
-              <Text style={styles.infoValue}>12 March, 1986</Text>
+              <Text style={styles.infoValue}>{phone || '—'}</Text>
             </View>
           </View>
 
@@ -90,19 +92,18 @@ export default function ProfileScreen() {
             <Ionicons name="time-outline" size={18} color="#0b4f8c" style={{ marginRight: 12 }} />
             <View>
               <Text style={styles.infoLabel}>Member since</Text>
-              <Text style={styles.infoValue}>23 December, 2025</Text>
+              <Text style={styles.infoValue}>{memberSince || '—'}</Text>
             </View>
           </View>
         </View>
 
-        {/* Action Links Card */}
         <View style={styles.card}>
-          <TouchableOpacity style={styles.actionRow} onPress={() => alert('Help and Support screen')}>
+          <TouchableOpacity style={styles.actionRow} onPress={() => router.push('/profile-security')}>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <Ionicons name="help-circle-outline" size={20} color="#0b4f8c" style={{ marginRight: 12 }} />
+              <Ionicons name="lock-closed-outline" size={20} color="#0b4f8c" style={{ marginRight: 12 }} />
               <View>
-                <Text style={styles.actionTitle}>Help and Support</Text>
-                <Text style={styles.actionSub}>FAQs, Contact support</Text>
+                <Text style={styles.actionTitle}>Change Password</Text>
+                <Text style={styles.actionSub}>Update your account password</Text>
               </View>
             </View>
             <Ionicons name="chevron-forward" size={18} color="#9ca3af" />
@@ -120,23 +121,9 @@ export default function ProfileScreen() {
             </View>
             <Ionicons name="chevron-forward" size={18} color="#9ca3af" />
           </TouchableOpacity>
-
-          <View style={styles.divider} />
-
-          <TouchableOpacity style={styles.actionRow} onPress={() => setShowDeleteModal(true)}>
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <Ionicons name="trash-outline" size={20} color="#ef4444" style={{ marginRight: 12 }} />
-              <View>
-                <Text style={[styles.actionTitle, { color: '#ef4444' }]}>Delete Account</Text>
-                <Text style={styles.actionSub}>Permanently remove account</Text>
-              </View>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color="#9ca3af" />
-          </TouchableOpacity>
         </View>
       </ScrollView>
 
-      {/* Logout Modal */}
       <Modal visible={showLogoutModal} transparent animationType="fade">
         <View style={styles.modalBackdrop}>
           <View style={styles.modalCard}>
@@ -151,46 +138,8 @@ export default function ProfileScreen() {
             <TouchableOpacity style={styles.primaryBtn} onPress={() => setShowLogoutModal(false)}>
               <Text style={styles.primaryBtnText}>Stay Logged In</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.dangerBtn} onPress={() => router.push('/dashboard')}>
-              <Text style={styles.dangerBtnText}>Log Out</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Delete Account Modal */}
-      <Modal visible={showDeleteModal} transparent animationType="fade">
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalCard}>
-            <TouchableOpacity style={styles.closeButton} onPress={() => setShowDeleteModal(false)}>
-              <Ionicons name="close" size={22} color="#0b4f8c" />
-            </TouchableOpacity>
-            <View style={styles.alertIconCircle}>
-              <Ionicons name="trash" size={32} color="#ef4444" />
-            </View>
-            <Text style={styles.modalTitle}>Delete Your Account?</Text>
-            <Text style={styles.modalSubtitle}>Are you sure you want to delete your account? This action may permanently remove your account and associated data, and you may lose access to your financial records. This cannot be undone.</Text>
-            <TouchableOpacity style={styles.dangerBtn} onPress={() => { setShowDeleteModal(false); setShowDeletedSuccess(true); }}>
-              <Text style={styles.dangerBtnText}>Delete Account</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={{ marginTop: 12 }} onPress={() => setShowDeleteModal(false)}>
-              <Text style={{ color: '#0b4f8c', fontWeight: '700' }}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Account Deleted Success Modal */}
-      <Modal visible={showDeletedSuccess} transparent animationType="fade">
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalCard}>
-            <View style={styles.successCircle}>
-              <Ionicons name="checkmark" size={36} color="#ffffff" />
-            </View>
-            <Text style={[styles.modalTitle, { color: '#ef4444' }]}>Account has been deleted successfully</Text>
-            <Text style={styles.modalSubtitle}>Account has been deleted successfully and cannot be undone</Text>
-            <TouchableOpacity style={styles.primaryBtn} onPress={() => router.push('/dashboard')}>
-              <Text style={styles.primaryBtnText}>Return to Dashboard</Text>
+            <TouchableOpacity style={[styles.dangerBtn, loggingOut && { opacity: 0.6 }]} onPress={handleLogout} disabled={loggingOut}>
+              <Text style={styles.dangerBtnText}>{loggingOut ? 'Logging out...' : 'Log Out'}</Text>
             </TouchableOpacity>
           </View>
         </View>

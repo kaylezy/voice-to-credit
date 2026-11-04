@@ -3,11 +3,16 @@ import { StyleSheet, Text, View, TextInput, TouchableOpacity, ScrollView, Keyboa
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useOnboardingDraft } from "@/features/business";
+
 
 export default function BusinessInfoScreen() {
   const router = useRouter();
-  const [businessName, setBusinessName] = useState('');
-  const [businessDescription, setBusinessDescription] = useState('');
+  const { draft, update } = useOnboardingDraft();
+  const businessName = draft.businessName;
+  const setBusinessName = (v: string) => update({ businessName: v });
+  const businessDescription = draft.businessDescription;
+  const setBusinessDescription = (v: string) => update({ businessDescription: v });
 
   return (
     <SafeAreaView style={styles.container}>
@@ -82,7 +87,10 @@ export default function BusinessInfoScreen() {
           {/* Continue Button */}
           <TouchableOpacity 
             style={styles.primaryButton} 
-            onPress={() => router.push('../onboarding/owner-info')}
+                        onPress={() => {
+              if (!businessName.trim()) return alert("Enter your business name.");
+              router.push('../onboarding/owner-info');
+            }}
           >
             <Text style={styles.primaryButtonText}>Continue</Text>
           </TouchableOpacity>
