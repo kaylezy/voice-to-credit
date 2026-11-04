@@ -1,45 +1,65 @@
+
 import React from 'react';
-import { StyleSheet, Text, View, Image, TouchableOpacity, } from 'react-native';
+import {
+  StyleSheet,
+  Text,
+  View,
+  Image,
+  TouchableOpacity,
+} from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { SafeAreaView } from "react-native-safe-area-context";
-import { useBusinessStatus } from "@/features/business";
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useBusinessStatus } from '@/features/business';
 
 export default function SetupCompleteScreen() {
   const router = useRouter();
   const { refresh } = useBusinessStatus();
+
   const goToDashboard = async () => {
-    await refresh();
-    router.replace("/dashboard");
+    try {
+      await refresh();
+      router.replace('/dashboard');
+    } catch (error) {
+      console.error('Dashboard navigation error:', error);
+
+      // Still navigate if refreshing business status fails.
+      router.replace('/dashboard');
+    }
   };
 
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.card}>
-        <TouchableOpacity style={styles.closeButton} onPress={() => alert('Dashboard navigation')}>
+        <TouchableOpacity
+          style={styles.closeButton}
+          onPress={goToDashboard}
+        >
           <Ionicons name="close" size={22} color="#0b4f8c" />
         </TouchableOpacity>
 
-        
         <View style={styles.imageContainer}>
-          <Image 
-            source={{ uri: '../../../assets/images/Celebration Badge Container (1).png' }} 
+          <Image
+            source={require('../../../assets/images/Celebration Badge Container (1).png')}
+            style={styles.successImage}
             resizeMode="contain"
           />
         </View>
 
-        {/* Text Details */}
         <Text style={styles.title}>Setup complete!</Text>
+
         <Text style={styles.subtitle}>
-          Your business profile has been created successfully. You're ready to start recording your business transactions.
+          Your business profile has been created successfully.
+          You're ready to start recording your business transactions.
         </Text>
 
-        {/* Action Button */}
-        <TouchableOpacity 
-          style={styles.primaryButton} 
-          onPress={() => alert('Navigate to Dashboard!')}
+        <TouchableOpacity
+          style={styles.primaryButton}
+          onPress={goToDashboard}
         >
-          <Text style={styles.primaryButtonText}>Go to Dashboard</Text>
+          <Text style={styles.primaryButtonText}>
+            Go to Dashboard
+          </Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -49,7 +69,7 @@ export default function SetupCompleteScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.4)', 
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 20,
