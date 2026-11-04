@@ -39,7 +39,7 @@ export default function SetupCompleteScreen() {
 
         <View style={styles.imageContainer}>
           <Image
-            source={require('../../../assets/images/Celebration Badge Container (1).png')}
+            source={require('../../../assets/images/ok-checked.png')}
             style={styles.successImage}
             resizeMode="contain"
           />
