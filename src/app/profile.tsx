@@ -21,10 +21,19 @@ export default function ProfileScreen() {
       (async () => {
         const { data } = await supabase.auth.getUser();
         setEmail(data.user?.email ?? '');
+
         if (data.user?.created_at) {
-          setMemberSince(new Date(data.user.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }));
+          setMemberSince(
+            new Date(data.user.created_at).toLocaleDateString('en-GB', {
+              day: 'numeric',
+              month: 'long',
+              year: 'numeric',
+            })
+          );
         }
+
         const res = await apiFetch<any>('/api/profile');
+
         if (res.ok && res.data) {
           setName(res.data.full_name ?? res.data.name ?? '');
           setPhone(res.data.phone ?? res.data.phone_number ?? '');
@@ -57,6 +66,7 @@ export default function ProfileScreen() {
             <View style={[styles.avatar, { justifyContent: 'center', alignItems: 'center' }]}>
               <Ionicons name="person" size={26} color="#9ca3af" />
             </View>
+
             <View style={{ flex: 1, marginLeft: 14 }}>
               <Text style={styles.userName}>{name || 'Your account'}</Text>
               <Text style={styles.userRole}>Business owner</Text>
@@ -98,7 +108,28 @@ export default function ProfileScreen() {
         </View>
 
         <View style={styles.card}>
-          <TouchableOpacity style={styles.actionRow} onPress={() => router.push('/profile-security')}>
+          {/* Edit Profile */}
+          <TouchableOpacity
+            style={styles.actionRow}
+            onPress={() => router.push('/profile-edit')}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Ionicons name="create-outline" size={20} color="#0b4f8c" style={{ marginRight: 12 }} />
+              <View>
+                <Text style={styles.actionTitle}>Edit Profile</Text>
+                <Text style={styles.actionSub}>Name, phone, gender, date of birth</Text>
+              </View>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color="#9ca3af" />
+          </TouchableOpacity>
+
+          <View style={styles.divider} />
+
+          {/* Change Password */}
+          <TouchableOpacity
+            style={styles.actionRow}
+            onPress={() => router.push('/profile-security')}
+          >
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               <Ionicons name="lock-closed-outline" size={20} color="#0b4f8c" style={{ marginRight: 12 }} />
               <View>
@@ -111,6 +142,7 @@ export default function ProfileScreen() {
 
           <View style={styles.divider} />
 
+          {/* Log Out */}
           <TouchableOpacity style={styles.actionRow} onPress={() => setShowLogoutModal(true)}>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               <Ionicons name="log-out-outline" size={20} color="#ef4444" style={{ marginRight: 12 }} />
@@ -130,16 +162,28 @@ export default function ProfileScreen() {
             <TouchableOpacity style={styles.closeButton} onPress={() => setShowLogoutModal(false)}>
               <Ionicons name="close" size={22} color="#0b4f8c" />
             </TouchableOpacity>
+
             <View style={styles.alertIconCircle}>
               <Ionicons name="log-out" size={32} color="#ef4444" />
             </View>
+
             <Text style={styles.modalTitle}>Log out of TradePadi?</Text>
-            <Text style={styles.modalSubtitle}>Are you sure you want to log out of your account? You’ll need to sign in again to access your financial records.</Text>
+            <Text style={styles.modalSubtitle}>
+              Are you sure you want to log out of your account? You’ll need to sign in again to access your financial records.
+            </Text>
+
             <TouchableOpacity style={styles.primaryBtn} onPress={() => setShowLogoutModal(false)}>
               <Text style={styles.primaryBtnText}>Stay Logged In</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.dangerBtn, loggingOut && { opacity: 0.6 }]} onPress={handleLogout} disabled={loggingOut}>
-              <Text style={styles.dangerBtnText}>{loggingOut ? 'Logging out...' : 'Log Out'}</Text>
+
+            <TouchableOpacity
+              style={[styles.dangerBtn, loggingOut && { opacity: 0.6 }]}
+              onPress={handleLogout}
+              disabled={loggingOut}
+            >
+              <Text style={styles.dangerBtnText}>
+                {loggingOut ? 'Logging out...' : 'Log Out'}
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
