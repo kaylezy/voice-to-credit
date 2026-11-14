@@ -243,6 +243,34 @@ export default function FinanceScreen() {
               />
             </TouchableOpacity>
             <TouchableOpacity
+  style={{
+    backgroundColor: '#0b4f8c',
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginVertical: 12,
+  }}
+  onPress={() => router.push('/export-financial')}
+>
+  <Text style={{ color: '#ffffff', fontSize: 15, fontWeight: '700' }}>Export Records</Text>
+</TouchableOpacity>
+
+<View style={{ flexDirection: 'row', gap: 12, marginVertical: 12 }}>
+  <TouchableOpacity
+    style={{ flex: 1, backgroundColor: '#0b4f8c', height: 48, borderRadius: 24, justifyContent: 'center', alignItems: 'center' }}
+    onPress={() => router.push('/export-financial')}
+  >
+    <Text style={{ color: '#ffffff', fontSize: 14, fontWeight: '700' }}>Download</Text>
+  </TouchableOpacity>
+  <TouchableOpacity
+    style={{ flex: 1, backgroundColor: '#0d9488', height: 48, borderRadius: 24, justifyContent: 'center', alignItems: 'center' }}
+    onPress={() => router.push('/export-share')}
+  >
+    <Text style={{ color: '#ffffff', fontSize: 14, fontWeight: '700' }}>Share</Text>
+  </TouchableOpacity>
+</View>
+            <TouchableOpacity
               style={styles.iconActionBtn}
               activeOpacity={0.8}
               onPress={handleUpload}
