@@ -1,27 +1,36 @@
-import React, { useEffect } from 'react';
-import { StyleSheet, Text, View, Image, ActivityIndicator } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { StyleSheet, Text, View, Image, ActivityIndicator, Animated, Easing } from 'react-native';
 import { useRouter } from 'expo-router';
 
 export default function SplashScreen() {
   const router = useRouter();
+  const bounce = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      router.replace('../onboarding'); 
-    }, 3000);
-    return () => clearTimeout(timer);
-  }, []);
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(bounce, { toValue: -26, duration: 480, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+        Animated.timing(bounce, { toValue: 0, duration: 480, easing: Easing.in(Easing.quad), useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [bounce]);
+
+  const shadowScale = bounce.interpolate({ inputRange: [-26, 0], outputRange: [0.6, 1] });
+  const shadowOpacity = bounce.interpolate({ inputRange: [-26, 0], outputRange: [0.1, 0.28] });
 
   return (
     <View style={styles.container}>
-      {/* Logo Container */}
-      <View style={styles.logoBox}>
+                  {/* Logo Container */}
+      <Animated.View style={[styles.logoBox, { transform: [{ translateY: bounce }] }]}>
         <Image 
           source={require('../../assets/images/logo.png')}
           style={styles.logoImage}
           resizeMode="contain"
         />
-      </View>
+      </Animated.View>
+      <Animated.View style={[styles.logoShadow, { opacity: shadowOpacity, transform: [{ scaleX: shadowScale }] }]} />
 
       {/* App Title & Subtitle */}
       <View style={styles.textContainer}>
@@ -60,6 +69,14 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 12,
     elevation: 5,
+    marginBottom: 0,
+  },
+    logoShadow: {
+    width: 70,
+    height: 10,
+    borderRadius: 35,
+    backgroundColor: '#9ca3af',
+    marginTop: 14,
     marginBottom: 30,
   },
   logoImage: {

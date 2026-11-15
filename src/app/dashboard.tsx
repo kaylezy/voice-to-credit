@@ -1,4 +1,8 @@
 import React, { useCallback, useState } from "react";
+import { useWindowDimensions } from "react-native";
+import { SalesTrendChart, ExpenseBarChart } from "@/features/dashboard/TrendCharts";
+import { fetchActivity } from "@/features/finance/activityApi";
+import type { ActivityPoint } from "@/features/finance/ActivityChart";
 import {
   StyleSheet,
   Text,
@@ -96,6 +100,24 @@ export default function DashboardScreen() {
   const [profileImageUri, setProfileImageUriState] = useState<string | null>(
     null,
   );
+    const { width: screenWidth } = useWindowDimensions();
+  const [trend, setTrend] = useState<ActivityPoint[] | null>(null);
+
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      fetchActivity(4).then((rows) => {
+        if (active) setTrend(rows);
+      });
+      return () => {
+        active = false;
+      };
+    }, []),
+  );
+
+  // 20px page padding on each side, 12px gap, 12px padding inside each card
+  const chartCardWidth = (screenWidth - 40 - 12) / 2;
+  const chartInnerWidth = chartCardWidth - 24;
 
   useFocusEffect(
     useCallback(() => {
@@ -209,6 +231,46 @@ export default function DashboardScreen() {
                 ))}
               </View>
             ))}
+                        {hasRecords && trend && trend.length > 0 && (
+              <>
+                <View style={styles.trendsHeader}>
+                  <Text style={styles.trendsTitle}>Business Trends</Text>
+                  <Text style={styles.trendsDate}>
+                    {trend[0].label} – {trend[trend.length - 1].label}{" "}
+                    {new Date().getFullYear()}
+                  </Text>
+                </View>
+                <Text style={styles.trendsSubtitle}>Sales and costs</Text>
+
+                <View style={styles.chartsRow}>
+                  <View style={styles.chartCard}>
+                    <View style={styles.chartTitleRow}>
+                      <View style={[styles.legendDot, { backgroundColor: "#10b981" }]} />
+                      <Text style={styles.chartTitleText}>Sales trend</Text>
+                    </View>
+                    <SalesTrendChart
+                      values={trend.map((t) => t.sales)}
+                      labels={trend.map((t) => t.label)}
+                      width={chartInnerWidth}
+                      height={110}
+                    />
+                  </View>
+
+                  <View style={styles.chartCard}>
+                    <View style={styles.chartTitleRow}>
+                      <View style={[styles.legendDot, { backgroundColor: "#e0a02a" }]} />
+                      <Text style={styles.chartTitleText}>Cost trend</Text>
+                    </View>
+                    <ExpenseBarChart
+                      values={trend.map((t) => t.costs)}
+                      labels={trend.map((t) => t.label)}
+                      width={chartInnerWidth}
+                      height={110}
+                    />
+                  </View>
+                </View>
+              </>
+            )}
 
             <TouchableOpacity
               style={[
@@ -361,14 +423,13 @@ const styles = StyleSheet.create({
   trendsDate: { fontSize: 12, color: "#9ca3af" },
   trendsSubtitle: { fontSize: 12, color: "#6b7280", marginBottom: 12 },
   chartsRow: { flexDirection: "row", gap: 12, marginBottom: 20 },
-  chartCard: {
+    chartCard: {
     flex: 1,
     backgroundColor: "#ffffff",
     borderRadius: 14,
     padding: 12,
     borderWidth: 1,
     borderColor: "#f1f5f9",
-    height: 160,
   },
   chartTitleRow: {
     flexDirection: "row",

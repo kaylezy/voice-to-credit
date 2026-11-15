@@ -2,17 +2,20 @@ import React, { useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, Modal, TextInput, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { AudioModule, RecordingPresets, setAudioModeAsync, useAudioRecorder } from 'expo-audio';
+import { AudioModule, RecordingPresets, setAudioModeAsync, useAudioRecorder, useAudioRecorderState } from 'expo-audio';
 import BottomNav from './BottomNav';
 import { SafeAreaView } from "react-native-safe-area-context";
 import { transcribeAudio, useTransactionDraft } from '@/features/transactions';
+import LiveWaveform, { dbToLevel } from '@/components/LiveWaveform';
 
 const MAX_SECONDS = 120;
 
 export default function RecordActiveScreen() {
   const router = useRouter();
   const { update } = useTransactionDraft();
-  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+    const recorder = useAudioRecorder({ ...RecordingPresets.HIGH_QUALITY, isMeteringEnabled: true });
+  const recState = useAudioRecorderState(recorder, 80);
+  const level = dbToLevel(recState.metering);
 
   const [seconds, setSeconds] = useState(0);
   const [recording, setRecording] = useState(false);
@@ -100,7 +103,7 @@ export default function RecordActiveScreen() {
       <Text style={styles.headerTitle}>Record Transaction</Text>
 
       <View style={styles.content}>
-        <View style={styles.outerCircleActive}>
+                <View style={[styles.outerCircleActive, { transform: [{ scale: 1 + level * 0.12 }] }]}>
           <View style={styles.innerCircleActive}>
             <Ionicons name="mic" size={60} color="#ffffff" />
           </View>
@@ -115,10 +118,8 @@ export default function RecordActiveScreen() {
           <Text style={{ color: '#dc2626', fontSize: 13, textAlign: 'center', marginBottom: 12 }}>{error}</Text>
         )}
 
-        <View style={styles.waveRow}>
-          {[16, 28, 40, 22, 36, 48, 20, 32, 44, 24, 38, 18, 30].map((h, i) => (
-            <View key={i} style={[styles.waveBar, { height: h }]} />
-          ))}
+                <View style={styles.waveRow}>
+          <LiveWaveform level={level} active={recording} bars={34} height={56} />
         </View>
 
         <Text style={styles.timerText}>{formatTime(seconds)}</Text>
@@ -261,11 +262,11 @@ const styles = StyleSheet.create({
     color: '#4b5563', 
     marginBottom: 16 
   },
-  waveRow: { 
+    waveRow: { 
     flexDirection: 'row', 
     alignItems: 'center', 
-    gap: 4, 
-    height: 40, 
+    justifyContent: 'center',
+    height: 64, 
     marginBottom: 10 
   },
   waveBar: { 

@@ -171,20 +171,26 @@ function buildHtml(s: Summary, periodLabel: string): string {
 </body></html>`;
 }
 
+
 export async function exportFinancialPdf(
   periodLabel: string,
   range?: { from?: string; to?: string }
 ) {
   const { data } = await supabase.auth.getSession();
   const token = data.session?.access_token;
-  if (!token) return { ok: false as const, error: "Please log in again." };
+
+  if (!token) {
+    return { ok: false as const, error: "Please log in again." };
+  }
 
   const qs = new URLSearchParams();
   if (range?.from) qs.set("from", range.from);
   if (range?.to) qs.set("to", range.to);
+
   const query = qs.toString() ? `?${qs.toString()}` : "";
 
   let res: Response;
+
   try {
     res = await fetch(`${API_URL}/api/exports/summary${query}`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -193,19 +199,58 @@ export async function exportFinancialPdf(
     return { ok: false as const, error: "No connection. Try again." };
   }
 
-  if (res.status === 429) return { ok: false as const, error: "Too many exports. Wait a minute." };
-  if (!res.ok) return { ok: false as const, error: "Could not build the report. Try again." };
-
-  const summary = (await res.json()) as Summary;
-  const { uri } = await Print.printToFileAsync({ html: buildHtml(summary, periodLabel) });
-
-  if (!(await Sharing.isAvailableAsync())) {
-    return { ok: false as const, error: "Sharing is not available on this phone." };
+  if (res.status === 429) {
+    return {
+      ok: false as const,
+      error: "Too many exports. Wait a minute.",
+    };
   }
-  await Sharing.shareAsync(uri, {
-    mimeType: "application/pdf",
-    dialogTitle: "Financial summary",
-    UTI: "com.adobe.pdf",
-  });
-  return { ok: true as const };
+
+  if (!res.ok) {
+    return {
+      ok: false as const,
+      error: "Could not build the report. Try again.",
+    };
+  }
+
+  try {
+    const summary = (await res.json()) as Summary;
+
+    const printed = await Print.printToFileAsync({
+  html: buildHtml(summary, periodLabel),
+  base64: true,
+});
+
+if (!printed.base64) {
+  return { ok: false as const, error: "Could not create the PDF. Try again." };
+}
+
+// Write the PDF ourselves into the app cache so sharing is allowed
+const binary = atob(printed.base64);
+const bytes = new Uint8Array(binary.length);
+for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+
+const pdfName = `trade-padi-financial-summary-${new Date().toISOString().slice(0, 10)}.pdf`;
+const dest = new File(Paths.cache, pdfName);
+if (dest.exists) dest.delete();
+dest.create();
+dest.write(bytes);
+
+if (!(await Sharing.isAvailableAsync())) {
+  return { ok: false as const, error: "Sharing is not available on this phone." };
+}
+await Sharing.shareAsync(dest.uri, {
+  mimeType: "application/pdf",
+  dialogTitle: "Financial summary",
+  UTI: "com.adobe.pdf",
+});
+return { ok: true as const };
+  } catch (error) {
+    console.error("PDF export error:", error);
+
+    return {
+      ok: false as const,
+      error: "Could not generate or share the PDF. Please try again.",
+    };
+  }
 }
