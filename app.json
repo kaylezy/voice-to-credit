@@ -43,7 +43,17 @@
       ],
       "expo-secure-store",
       "expo-asset",
-      "expo-sharing"
+      "expo-sharing",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "buildArchs": ["arm64-v8a"],
+            "enableProguardInReleaseBuilds": true,
+            "enableShrinkResourcesInReleaseBuilds": true
+          }
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
