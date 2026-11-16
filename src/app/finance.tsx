@@ -9,7 +9,6 @@ import {
   TouchableOpacity,
   Image,
   Alert,
-  useWindowDimensions,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { useFocusEffect, useRouter } from "expo-router";
@@ -20,9 +19,7 @@ import { apiFetch } from "@/lib/api";
 import { formatNaira } from "@/features/transactions";
 import { getProfileImageUri, setProfileImageUri } from "@/lib/profile-image";
 import { supabase } from "@/lib/supabase";
-import ActivityChart, { ActivityPoint } from "@/features/finance/ActivityChart";
-import { fetchActivity } from "@/features/finance/activityApi";
-
+import AnalyticsSection from '@/features/finance/AnalyticsSection';
 type Profile = {
   total_recorded_sales: number;
   total_recorded_purchases: number;
@@ -43,9 +40,6 @@ type Business = {
 
 export default function FinanceScreen() {
   const router = useRouter();
-  const { width: screenWidth } = useWindowDimensions();
-  const [activity, setActivity] = useState<ActivityPoint[] | null>(null);
-  const [activityError, setActivityError] = useState(false);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [business, setBusiness] = useState<Business | null>(null);
   const [loading, setLoading] = useState(true);
@@ -73,26 +67,6 @@ export default function FinanceScreen() {
     }
     if (b.ok && b.data[0]) setBusiness(b.data[0]);
     setLoading(false);
-  }, []);
-
-  useEffect(() => {
-    let active = true;
-
-    fetchActivity(6)
-      .then((points) => {
-        if (active) {
-          setActivity(points);
-          setActivityError(false);
-        }
-      })
-      .catch((fetchError) => {
-        console.error("Failed to load business activity:", fetchError);
-        if (active) setActivityError(true);
-      });
-
-    return () => {
-      active = false;
-    };
   }, []);
 
   useEffect(() => {
@@ -183,30 +157,6 @@ export default function FinanceScreen() {
     router.push({ pathname: "/ledger", params: { filter: "last-6-months" } });
   };
 
-  const Metric = ({
-    label,
-    value,
-    color,
-    bg,
-    icon,
-  }: {
-    label: string;
-    value: number;
-    color: string;
-    bg: string;
-    icon: React.ComponentProps<typeof Ionicons>["name"];
-  }) => (
-    <View style={[styles.metricCard, { borderTopColor: color }]}>
-      <View style={styles.metricCardHeader}>
-        <View style={[styles.metricIconBox, { backgroundColor: bg }]}>
-          <Ionicons name={icon} size={16} color={color} />
-        </View>
-        <Text style={styles.metricLabel}>{label}</Text>
-      </View>
-      <Text style={styles.metricValue}>{formatNaira(value)}</Text>
-    </View>
-  );
-
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView
@@ -214,6 +164,7 @@ export default function FinanceScreen() {
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={refresh} />
+          
         }
       >
         <View style={styles.headerContainer}>
@@ -288,7 +239,7 @@ export default function FinanceScreen() {
 
                 <View style={{ flex: 1, marginLeft: 14 }}>
                   <Text style={styles.businessName}>
-                    {business?.name ?? "Amina Fabrics"}
+                    {business?.name ?? "My Business"}
                   </Text>
                   {!!sub && <Text style={styles.businessSub}>{sub}</Text>}
                 </View>
@@ -312,7 +263,8 @@ export default function FinanceScreen() {
                   style={{ marginRight: 8 }}
                 />
                 <Text style={styles.profileInfoText}>
-                  {profile.transaction_count} transactions in total
+                  {profile.transaction_count}{" "}
+                  {profile.transaction_count === 1 ? "transaction" : "transactions"} in total
                 </Text>
               </View>
 
@@ -333,76 +285,7 @@ export default function FinanceScreen() {
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.sectionHeader}>Financial Metrics</Text>
-            <Text style={styles.chartSubtitle}>Business Perfomance</Text>
 
-            <View style={styles.metricsBox}>
-              <View style={styles.metricsGridRow}>
-                <Metric
-                  label="Sales"
-                  value={profile.total_recorded_sales}
-                  color="#0b4f8c"
-                  bg="#e0f2fe"
-                  icon="bar-chart-outline"
-                />
-                <Metric
-                  label="Purchases"
-                  value={profile.total_recorded_purchases}
-                  color="#ef4444"
-                  bg="#fee2e2"
-                  icon="bag-handle-outline"
-                />
-              </View>
-              <View style={styles.metricsGridRow}>
-                <Metric
-                  label="Expenses"
-                  value={profile.total_recorded_expenses}
-                  color="#f59e0b"
-                  bg="#fef3c7"
-                  icon="wallet-outline"
-                />
-                <Metric
-                  label="Est. gross profit"
-                  value={profile.estimated_gross_profit}
-                  color="#10b981"
-                  bg="#d1fae5"
-                  icon="trending-up-outline"
-                />
-              </View>
-            </View>
-
-            <View style={styles.chartCard}>
-              <View style={styles.chartInnerCard}>
-                <Text style={styles.chartTitle}>Business Activity</Text>
-                <Text style={styles.chartSubtitle}>Sales and Costs (purchases + expenses)</Text>
-
-                <View style={styles.legendRow}>
-                  <View style={styles.legendItem}>
-                    <View
-                      style={[styles.legendDot, { backgroundColor: "#1bb7b8" }]}
-                    />
-                    <Text style={styles.legendText}>Sales</Text>
-                  </View>
-                  <View style={styles.legendItem}>
-                    <View
-                      style={[styles.legendDot, { backgroundColor: "#f59e0b" }]}
-                    />
-                    <Text style={styles.legendText}>Costs</Text>
-                  </View>
-                </View>
-
-                {activity ? (
-                  <ActivityChart
-                    data={activity}
-                    width={Math.max(220, screenWidth - 60)}
-                  />
-                ) : (
-                  <Text style={styles.chartLoadingText}>
-                    {activityError ? "Could not load the activity chart." : "Loading chart…"}
-                  </Text>
-                )}
-              </View>
-            </View>
 
             <Text style={styles.sectionHeader}>Open Balances</Text>
             <Text style={styles.sectionSub}>Receivables and Payables</Text>
@@ -433,6 +316,7 @@ export default function FinanceScreen() {
             </View>
           </>
         )}
+        <AnalyticsSection />
       </ScrollView>
 
       <BottomNav />
@@ -537,61 +421,6 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   sectionSub: { fontSize: 12, color: "#6b7280", marginBottom: 10 },
-  metricsBox: {
-    backgroundColor: "#0b4f8c",
-    borderRadius: 22,
-    padding: 12,
-    marginBottom: 18,
-  },
-  metricsGridRow: { flexDirection: "row", gap: 10, marginBottom: 10 },
-  metricCard: {
-    flex: 1,
-    backgroundColor: "#ffffff",
-    borderRadius: 16,
-    padding: 12,
-    borderTopWidth: 3,
-  },
-  metricCardHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 8,
-  },
-  metricIconBox: {
-    width: 26,
-    height: 26,
-    borderRadius: 8,
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 6,
-  },
-  metricLabel: { fontSize: 11, fontWeight: "600", color: "#6b7280" },
-  metricValue: {
-    fontSize: 15,
-    fontWeight: "800",
-    color: "#1f2937",
-    marginBottom: 2,
-  },
-  chartCard: {
-    backgroundColor: "#f6f7fb",
-    borderWidth: 1,
-    borderColor: "#e5e7eb",
-    borderRadius: 20,
-    padding: 12,
-    marginBottom: 18,
-  },
-  chartInnerCard: { backgroundColor: "#f6f7fb", borderRadius: 16 },
-  chartTitle: {
-    fontSize: 18,
-    fontWeight: "800",
-    color: "#23395d",
-    marginBottom: 2,
-  },
-  chartSubtitle: { fontSize: 12, color: "#6b7280", marginBottom: 12 },
-  legendRow: { flexDirection: "row", gap: 18, marginBottom: 8 },
-  legendItem: { flexDirection: "row", alignItems: "center" },
-  legendDot: { width: 8, height: 8, borderRadius: 4, marginRight: 6 },
-  legendText: { fontSize: 12, color: "#4b5563", fontWeight: "600" },
-  chartLoadingText: { color: "#6b7280", fontSize: 12, paddingVertical: 24 },
   balancesCard: {
     backgroundColor: "#ffffff",
     borderRadius: 18,

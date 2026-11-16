@@ -11,7 +11,7 @@ function AuthGate() {
   const segments = useSegments();
   const router = useRouter();
   const checking = loading || (!!session && status === "unknown");
-
+  console.log("GATE", { loading, hasSession: !!session, status, checking, segments });
   useEffect(() => {
     if (checking) return;
 

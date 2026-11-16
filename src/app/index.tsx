@@ -17,6 +17,12 @@ export default function SplashScreen() {
     return () => loop.stop();
   }, [bounce]);
 
+    useEffect(() => {
+    const timer = setTimeout(() => {
+      router.replace('../onboarding');
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, []);
   const shadowScale = bounce.interpolate({ inputRange: [-26, 0], outputRange: [0.6, 1] });
   const shadowOpacity = bounce.interpolate({ inputRange: [-26, 0], outputRange: [0.1, 0.28] });
 
